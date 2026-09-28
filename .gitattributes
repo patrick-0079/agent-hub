@@ -1,0 +1,12 @@
+# 统一换行符：仓库内统一 LF，检出时按平台转换
+* text=auto eol=lf
+
+# 二进制/生成物不做转换
+*.png binary
+*.ico binary
+*.db binary
+
+# 生成物不参与语言统计
+src-tauri/target/** linguist-generated
+dist/** linguist-generated
+pnpm-lock.yaml linguist-generated
