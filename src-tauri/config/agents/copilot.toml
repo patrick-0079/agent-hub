@@ -1,0 +1,55 @@
+# AgentHub · Agent 定义 —— GitHub Copilot CLI
+# 注意：~/.copilot/config.json 由 CLI 自身创建；若命令行程序已卸载，会判定为「仅发现配置」
+
+[agent]
+id = "copilot"
+name = "GitHub Copilot CLI"
+vendor = "GitHub"
+kind = "cli"
+accent = "#94a3b8"
+note = "config.json 由 CLI 自身创建，因此可作为「装过」的中等证据；强证据仍需程序本体"
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 copilot"
+args = ["copilot"]
+paths = ["%APPDATA%/npm", "%PROGRAMDATA%/npm/npm", "%LOCALAPPDATA%/Programs/copilot", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[evidence]]
+capability = "npm.global.has"
+strength = "strong"
+label = "全局 npm 包"
+args = ["@github/copilot"]
+
+[[paths]]
+label = "程序安装目录"
+path = "%LOCALAPPDATA%/Programs/copilot"
+role = "install"
+
+[[paths]]
+label = "配置"
+path = "~/.copilot/config.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "IDE 集成"
+path = "~/.copilot/ide"
+role = "data"
+
+[[paths]]
+label = "日志"
+path = "~/.copilot/logs"
+role = "data"
+
+[[mcp]]
+file = "~/.copilot/mcp-config.json"
+root = "mcpServers"
+format = "json"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = []
+configWrite = ["merge-keys"]

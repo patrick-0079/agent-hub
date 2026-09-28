@@ -1,0 +1,144 @@
+/** Tauri 后端调用封装。浏览器直开时给出明确的降级提示，而不是静默失败。 */
+
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import type {
+  ActionPlan,
+  ActionResult,
+  AppSettings,
+  BackupInfo,
+  BrokenRef,
+  CapabilitySpec,
+  CloneOutcome,
+  DefinitionsView,
+  DirEntry,
+  DiscoveredSkill,
+  ExecutableInfo,
+  HostInfo,
+  ManifestInfo,
+  McpResource,
+  Progress,
+  ProviderResource,
+  ScanSnapshot,
+  SkillEnv,
+  SnapshotMeta,
+  SyncPlan,
+  TextPreview,
+  TrashDetail,
+  TrashEntry,
+  TrashStats,
+  VaultStatus,
+} from "./types";
+
+export const isTauri =
+  typeof window !== "undefined" && "__TAURI_INTERNALS__" in (window as unknown as object);
+
+export class BackendUnavailable extends Error {}
+
+async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  if (!isTauri) {
+    throw new BackendUnavailable("浏览器预览模式：未连接 Tauri 后端，请通过 `pnpm app:dev` 启动。");
+  }
+  return invoke<T>(cmd, args);
+}
+
+export const api = {
+  appInfo: () => call<HostInfo>("app_info"),
+  getSettings: () => call<AppSettings>("get_settings"),
+  saveSettings: (settings: AppSettings) => call<AppSettings>("save_settings", { settings }),
+  resetOnboarding: () => call<AppSettings>("reset_onboarding"),
+  detectExecutables: () => call<ExecutableInfo[]>("detect_executables"),
+  runScan: () => call<ScanSnapshot>("run_scan"),
+  lastSnapshot: () => call<ScanSnapshot | null>("last_snapshot"),
+  snapshotHistory: (limit = 30) => call<SnapshotMeta[]>("snapshot_history", { limit }),
+  readTextPreview: (path: string, maxBytes?: number) =>
+    call<TextPreview>("read_text_preview", { path, maxBytes }),
+  revealPath: (path: string) => call<void>("reveal_path", { path }),
+  listDir: (path: string, limit?: number) => call<DirEntry[]>("list_dir", { path, limit }),
+  frontendReady: () => call<void>("frontend_ready"),
+
+  // 内核能力目录与 Agent 定义（配置驱动）
+  capabilityCatalog: () => call<CapabilitySpec[]>("capability_catalog"),
+  agentDefinitions: () => call<DefinitionsView>("agent_definitions"),
+  saveAgentDefinition: (id: string, content: string) =>
+    call<DefinitionsView>("save_agent_definition", { id, content }),
+  resetAgentDefinition: (id: string) =>
+    call<DefinitionsView>("reset_agent_definition", { id }),
+  seedAgentDefinitions: () => call<number>("seed_agent_definitions"),
+
+  // T2/T3 动作：Skill 导入 / 清理 / 重建 / 删除
+  skillEnvironment: () => call<SkillEnv>("skill_environment"),
+  skillDiscover: (source: string, library?: string) =>
+    call<DiscoveredSkill[]>("skill_discover", { source, library: library ?? null }),
+  skillImportPlan: (source: string, library: string | null, mode: string, names: string[]) =>
+    call<ActionPlan>("skill_import_plan", { source, library, mode, names }),
+  skillImportApply: (source: string, library: string | null, mode: string, names: string[]) =>
+    call<ActionResult>("skill_import_apply", { source, library, mode, names }),
+  gitCloneRepo: (url: string, proxy?: string) =>
+    call<CloneOutcome>("git_clone_repo", { url, proxy: proxy ?? null }),
+  tmpCleanup: (path: string) => call<ActionResult>("tmp_cleanup", { path }),
+  skillCleanupPlan: (broken: BrokenRef[]) => call<ActionPlan>("skill_cleanup_plan", { broken }),
+  skillCleanupApply: (broken: BrokenRef[]) => call<ActionResult>("skill_cleanup_apply", { broken }),
+  skillRelinkPlan: (broken: BrokenRef[], newRoot: string) =>
+    call<ActionPlan>("skill_relink_plan", { broken, newRoot }),
+  skillRelinkApply: (broken: BrokenRef[], newRoot: string) =>
+    call<ActionResult>("skill_relink_apply", { broken, newRoot }),
+  skillDeletePlan: (path: string, linkImpact: number) =>
+    call<ActionPlan>("skill_delete_plan", { path, linkImpact }),
+  skillDeleteApply: (path: string) => call<ActionResult>("skill_delete_apply", { path }),
+  trashList: () => call<TrashEntry[]>("trash_list"),
+  trashRestore: (name: string) => call<ActionResult>("trash_restore", { name }),
+  trashStats: () => call<TrashStats>("trash_stats"),
+  trashDetail: (name: string) => call<TrashDetail>("trash_detail", { name }),
+  trashRestoreItems: (name: string, stored: string[]) =>
+    call<ActionResult>("trash_restore_items", { name, stored }),
+  trashPurgePlan: (names: string[]) => call<ActionPlan>("trash_purge_plan", { names }),
+  trashPurgeApply: (names: string[]) => call<ActionResult>("trash_purge_apply", { names }),
+  trashPurgeOlderPlan: (days: number) => call<ActionPlan>("trash_purge_older_plan", { days }),
+  trashPurgeOlderApply: (days: number) => call<ActionResult>("trash_purge_older_apply", { days }),
+
+  // MCP 资源库与配置分发（T2）
+  mcpResources: () => call<McpResource[]>("mcp_resources"),
+  mcpSave: (resource: McpResource) => call<McpResource[]>("mcp_save", { resource }),
+  mcpRemove: (id: number) => call<McpResource[]>("mcp_remove", { id }),
+  mcpImport: (items: McpResource[]) => call<McpResource[]>("mcp_import", { items }),
+  mcpSyncPlan: (agentIds: string[], overwriteUnmanaged = false) =>
+    call<SyncPlan>("mcp_sync_plan", { agentIds, overwriteUnmanaged }),
+  mcpSyncApply: (agentIds: string[], overwriteUnmanaged = false) =>
+    call<ActionResult>("mcp_sync_apply", { agentIds, overwriteUnmanaged }),
+  backupsList: (limit = 50) => call<BackupInfo[]>("backups_list", { limit }),
+  backupRestore: (id: number) => call<ActionResult>("backup_restore", { id }),
+
+  // 供应商资源库与保险库（T2 + DPAPI）
+  providerResources: () => call<ProviderResource[]>("provider_resources"),
+  providerSave: (resource: ProviderResource, apiKey?: string | null) =>
+    call<ProviderResource[]>("provider_save", { resource, apiKey: apiKey ?? null }),
+  providerRemove: (id: number, removeKey = true) =>
+    call<ProviderResource[]>("provider_remove", { id, removeKey }),
+  providerImport: (items: ProviderResource[]) =>
+    call<ProviderResource[]>("provider_import", { items }),
+  providerRevealKey: (id: number) => call<string>("provider_reveal_key", { id }),
+  vaultStatus: () => call<VaultStatus>("vault_status"),
+  providerSyncPlan: (agentIds: string[], overwriteUnmanaged = false) =>
+    call<SyncPlan>("provider_sync_plan", { agentIds, overwriteUnmanaged }),
+  providerSyncApply: (agentIds: string[], overwriteUnmanaged = false) =>
+    call<ActionResult>("provider_sync_apply", { agentIds, overwriteUnmanaged }),
+  manifestsList: (limit = 30) => call<ManifestInfo[]>("manifests_list", { limit }),
+  manifestRestore: (path: string) => call<ActionResult>("manifest_restore", { path }),
+};
+
+/** 订阅扫描进度事件，返回取消订阅函数。 */
+export function onScanProgress(handler: (p: Progress) => void): () => void {
+  if (!isTauri) return () => {};
+  const pending = listen<Progress>("scan:progress", (event) => handler(event.payload));
+  return () => {
+    pending.then((unlisten) => unlisten()).catch(() => {});
+  };
+}
+
+export function describeError(error: unknown): string {
+  if (error instanceof BackendUnavailable) return error.message;
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  return String(error);
+}

@@ -1,0 +1,56 @@
+# AgentHub · Agent 定义 —— Cursor
+# AI 原生编辑器（自身即 Agent），归入 kind = "ide"
+
+[agent]
+id = "cursor"
+name = "Cursor"
+vendor = "Anysphere"
+kind = "ide"
+accent = "#8b8bff"
+note = "AI 原生编辑器，自带 Agent 能力；使用 .cursor/mcp.json 管理 MCP"
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 cursor"
+args = ["cursor", "cursor-agent"]
+paths = ["%LOCALAPPDATA%/Programs/cursor/resources/app/bin", "%APPDATA%/npm", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[paths]]
+label = "程序安装目录"
+path = "%LOCALAPPDATA%/Programs/cursor"
+role = "install"
+
+[[paths]]
+label = "用户数据目录"
+path = "%APPDATA%/Cursor"
+role = "install"
+
+[[paths]]
+label = "MCP 配置"
+path = "~/.cursor/mcp.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "用户设置"
+path = "%APPDATA%/Cursor/User/settings.json"
+role = "config"
+format = "json"
+
+[[mcp]]
+file = "~/.cursor/mcp.json"
+root = "mcpServers"
+format = "json"
+
+[[mcp]]
+file = "%APPDATA%/Cursor/User/mcp.json"
+root = "mcpServers"
+format = "json"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = []
+configWrite = ["merge-keys"]
+notes = "M2 起可同时服务 VS Code 与 Cursor 内的扩展（两者 globalStorage 路径不同）"

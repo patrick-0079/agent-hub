@@ -1,0 +1,37 @@
+# AgentHub · Agent 定义 —— Roo Code
+# 编辑器扩展，判定方式同 Cline
+
+[agent]
+id = "roo-code"
+name = "Roo Code"
+vendor = "Roo"
+kind = "extension"
+accent = "#f59e0b"
+note = "VS Code / Cursor 扩展"
+adapter = ""
+
+[[paths]]
+label = "扩展数据目录（本体）"
+path = "%APPDATA%/Code/User/globalStorage/rooveterinaryinc.roo-cline"
+role = "install"
+
+[[paths]]
+label = "Cursor 内扩展数据"
+path = "%APPDATA%/Cursor/User/globalStorage/rooveterinaryinc.roo-cline"
+role = "install"
+
+[[paths]]
+label = "MCP 设置"
+path = "%APPDATA%/Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json"
+role = "config"
+format = "json"
+
+[[mcp]]
+file = "%APPDATA%/Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json"
+root = "mcpServers"
+format = "json"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = []
+configWrite = ["merge-keys"]

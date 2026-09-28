@@ -1,0 +1,57 @@
+# AgentHub · Agent 定义 —— OpenViking
+# 记忆 / 插件型 Agent，可作为 opencode 插件运行
+
+[agent]
+id = "openviking"
+name = "OpenViking"
+vendor = "OpenViking"
+kind = "cli"
+accent = "#38bdf8"
+note = "同时提供 opencode 插件形态；配置分散在 ~/.openviking 与 opencode 配置目录"
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 ov"
+args = ["ov", "ovcli"]
+paths = ["%APPDATA%/npm", "%PROGRAMDATA%/npm/npm", "%USERPROFILE%/.local/bin"]
+
+[[evidence]]
+capability = "npm.global.has"
+strength = "strong"
+label = "全局 npm 包"
+args = ["@openviking/cli"]
+
+[[paths]]
+label = "CLI 配置"
+path = "~/.openviking/ovcli.conf"
+role = "config"
+format = "conf"
+
+[[paths]]
+label = "主配置"
+path = "~/.openviking/ov.conf"
+role = "config"
+format = "conf"
+
+[[paths]]
+label = "opencode 插件配置"
+path = "~/.config/opencode/openviking-config.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "待处理队列"
+path = "~/.openviking/pending"
+role = "data"
+
+[[paths]]
+label = "管理数据"
+path = "~/.openviking/admin"
+role = "data"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = []
+configWrite = ["merge-keys"]

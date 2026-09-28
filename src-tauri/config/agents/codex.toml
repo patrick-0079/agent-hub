@@ -1,0 +1,61 @@
+# AgentHub · Agent 定义 —— Codex CLI
+
+[agent]
+id = "codex"
+name = "Codex CLI"
+vendor = "OpenAI"
+kind = "cli"
+accent = "#10a37f"
+note = ""
+adapter = "codex"
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 codex"
+args = ["codex"]
+paths = ["%APPDATA%/npm", "%PROGRAMDATA%/npm/npm", "%USERPROFILE%/.local/bin", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[evidence]]
+capability = "npm.global.has"
+strength = "strong"
+label = "全局 npm 包"
+args = ["@openai/codex"]
+
+[[paths]]
+label = "主配置"
+path = "~/.codex/config.toml"
+role = "config"
+format = "toml"
+
+[[paths]]
+label = "认证"
+path = "~/.codex/auth.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "Skills 目录"
+path = "~/.codex/skills"
+role = "skills"
+deploy = "copy"
+
+[[mcp]]
+file = "~/.codex/config.toml"
+root = "mcp_servers"
+format = "toml"
+strategy = "managed-block"   # TOML 用托管块，避免整体重排用户文件
+
+[[provider]]
+file = "~/.codex/config.toml"
+root = "model_providers"
+format = "toml"
+kind = "base-url"
+baseUrlKey = "base_url"
+label = "Codex 供应商"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = ["copy", "link"]
+configWrite = ["merge-keys"]
+notes = "MCP 节点为 [mcp_servers.*]，配置为 TOML，合并写入时保留用户其它段落"

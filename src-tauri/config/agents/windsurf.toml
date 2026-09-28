@@ -1,0 +1,48 @@
+# AgentHub · Agent 定义 —— Windsurf
+
+[agent]
+id = "windsurf"
+name = "Windsurf"
+vendor = "Codeium"
+kind = "ide"
+accent = "#09b6a2"
+note = "AI 原生编辑器；~/.codeium 也可能是 VS Code 的 Codeium 扩展遗留，故列为数据目录"
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 windsurf"
+args = ["windsurf"]
+paths = ["%LOCALAPPDATA%/Programs/Windsurf", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[paths]]
+label = "程序安装目录"
+path = "%LOCALAPPDATA%/Programs/Windsurf"
+role = "install"
+
+[[paths]]
+label = "用户数据目录"
+path = "%APPDATA%/Windsurf"
+role = "install"
+
+[[paths]]
+label = "MCP 配置"
+path = "~/.codeium/windsurf/mcp_config.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "Codeium 数据"
+path = "~/.codeium"
+role = "data"
+
+[[mcp]]
+file = "~/.codeium/windsurf/mcp_config.json"
+root = "mcpServers"
+format = "json"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = []
+configWrite = ["merge-keys"]

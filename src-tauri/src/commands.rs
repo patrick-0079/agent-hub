@@ -1,0 +1,885 @@
+//! Tauri 命令层：GUI 的全部后端入口。
+
+use crate::model::{AppSettings, ExecutableInfo, HostInfo, ScanSnapshot, SnapshotMeta, TextPreview};
+use crate::scan::{self, Reporter};
+use crate::store::Store;
+use crate::util;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use tauri::{Emitter, Manager, State};
+
+pub struct AppState {
+    pub store: Arc<Store>,
+    pub settings: Mutex<AppSettings>,
+    pub scanning: Arc<AtomicBool>,
+    /// 密钥保险库（DPAPI 加密；明文永不落库）
+    pub vault: Arc<crate::vault::Vault>,
+}
+
+/* ------------------------------------------------------------------ 基础 */
+
+#[tauri::command]
+pub fn app_info(state: State<'_, AppState>) -> HostInfo {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    let _ = settings;
+    let data_dir = state.store.data_dir();
+    util::host_info(
+        env!("CARGO_PKG_VERSION"),
+        &data_dir.to_string_lossy(),
+        &data_dir.join("agenthub.db").to_string_lossy(),
+    )
+}
+
+#[tauri::command]
+pub fn get_settings(state: State<'_, AppState>) -> AppSettings {
+    state.settings.lock().map(|s| s.clone()).unwrap_or_default()
+}
+
+#[tauri::command]
+pub fn save_settings(
+    state: State<'_, AppState>,
+    settings: AppSettings,
+) -> Result<AppSettings, String> {
+    state
+        .store
+        .save_settings(&settings)
+        .map_err(|e| format!("保存设置失败：{}", e))?;
+    if let Ok(mut guard) = state.settings.lock() {
+        *guard = settings.clone();
+    }
+    Ok(settings)
+}
+
+#[tauri::command]
+pub fn reset_onboarding(state: State<'_, AppState>) -> Result<AppSettings, String> {
+    let mut settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    settings.onboarding_done = false;
+    state
+        .store
+        .save_settings(&settings)
+        .map_err(|e| format!("保存设置失败：{}", e))?;
+    if let Ok(mut guard) = state.settings.lock() {
+        *guard = settings.clone();
+    }
+    Ok(settings)
+}
+
+/* ------------------------------------------------------------------ 探测 */
+
+/// 快速探测可执行文件（设置页「工具链探测面板」用，不触发全量扫描）。
+#[tauri::command]
+pub fn detect_executables(state: State<'_, AppState>) -> Vec<ExecutableInfo> {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    scan::executables::scan(&settings)
+}
+
+/// 全量扫描：异步执行，过程中通过 `scan:progress` 事件实时推送进度。
+#[tauri::command]
+pub async fn run_scan(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<ScanSnapshot, String> {
+    let store = state.store.clone();
+    let scanning = state.scanning.clone();
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+
+    if scanning.swap(true, Ordering::SeqCst) {
+        return Err("已有扫描任务正在进行".to_string());
+    }
+
+    let data_dir = store.data_dir();
+    let host = util::host_info(
+        env!("CARGO_PKG_VERSION"),
+        &data_dir.to_string_lossy(),
+        &data_dir.join("agenthub.db").to_string_lossy(),
+    );
+
+    let app_handle = app.clone();
+    let keep = settings.backup_retention.max(3) as usize;
+
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let emit_handle = app_handle.clone();
+        let emit = move |p: crate::model::Progress| {
+            let _ = emit_handle.emit("scan:progress", p);
+        };
+        let reporter = Reporter::new(&emit);
+        let snapshot = scan::scan(&settings, &host, &reporter);
+        if let Err(e) = store.save_snapshot(&snapshot) {
+            let _ = app_handle.emit(
+                "scan:progress",
+                crate::model::Progress {
+                    phase: "存储".to_string(),
+                    message: format!("快照写入失败：{}", e),
+                    current: 0,
+                    total: 0,
+                    level: "error".to_string(),
+                    ts: util::now_human(),
+                },
+            );
+        }
+        let _ = store.prune_snapshots(keep.max(10));
+        snapshot
+    })
+    .await;
+
+    scanning.store(false, Ordering::SeqCst);
+
+    match result {
+        Ok(snapshot) => Ok(snapshot),
+        Err(e) => Err(format!("扫描任务异常终止：{}", e)),
+    }
+}
+
+#[tauri::command]
+pub fn last_snapshot(state: State<'_, AppState>) -> Option<ScanSnapshot> {
+    state.store.latest_snapshot()
+}
+
+#[tauri::command]
+pub fn snapshot_history(state: State<'_, AppState>, limit: Option<usize>) -> Vec<SnapshotMeta> {
+    state.store.snapshot_history(limit.unwrap_or(30))
+}
+
+/* ------------------------------------------------------------- 文件与预览 */
+
+/// 读取文本预览（Skill 的 SKILL.md、配置文件等），带大小上限。
+#[tauri::command]
+pub fn read_text_preview(path: String, max_bytes: Option<usize>) -> TextPreview {
+    let limit = max_bytes.unwrap_or(200 * 1024);
+    let p = PathBuf::from(&path);
+    if !p.exists() {
+        return TextPreview {
+            path,
+            exists: false,
+            error: Some("文件不存在".to_string()),
+            ..Default::default()
+        };
+    }
+    let bytes = util::file_size(&p).unwrap_or(0);
+    match std::fs::read(&p) {
+        Ok(raw) => {
+            let truncated = raw.len() > limit;
+            let slice = &raw[..raw.len().min(limit)];
+            TextPreview {
+                path: path.clone(),
+                exists: true,
+                bytes,
+                truncated,
+                text: String::from_utf8_lossy(slice).to_string(),
+                error: None,
+            }
+        }
+        Err(e) => TextPreview {
+            path,
+            exists: true,
+            bytes,
+            truncated: false,
+            text: String::new(),
+            error: Some(format!("读取失败：{}", e)),
+        },
+    }
+}
+
+/// 在文件管理器中定位路径（不存在则打开其父目录）。
+#[tauri::command]
+pub fn reveal_path(path: String) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    let target = if p.exists() {
+        p.clone()
+    } else {
+        p.parent().map(|x| x.to_path_buf()).unwrap_or(p.clone())
+    };
+    if !target.exists() {
+        return Err(format!("路径不存在：{}", target.to_string_lossy()));
+    }
+    #[cfg(windows)]
+    {
+        let mut cmd = if target.is_dir() {
+            let mut c = std::process::Command::new("explorer.exe");
+            c.arg(&target);
+            c
+        } else {
+            let mut c = std::process::Command::new("explorer.exe");
+            c.arg(format!("/select,{}", target.to_string_lossy()));
+            c
+        };
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+        cmd.spawn().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&target)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+}
+
+/// 列出目录内容（用于 Skill 详情中的文件清单）。
+#[tauri::command]
+pub fn list_dir(path: String, limit: Option<usize>) -> Vec<serde_json::Value> {
+    let p = PathBuf::from(&path);
+    let mut out = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&p) {
+        for entry in entries.flatten().take(limit.unwrap_or(200)) {
+            let meta = entry.metadata().ok();
+            let is_dir = meta.as_ref().map(|m| m.is_dir()).unwrap_or(false);
+            let size = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+            out.push(serde_json::json!({
+                "name": entry.file_name().to_string_lossy(),
+                "isDir": is_dir,
+                "size": size,
+            }));
+        }
+    }
+    out.sort_by(|a, b| {
+        b["isDir"]
+            .as_bool()
+            .unwrap_or(false)
+            .cmp(&a["isDir"].as_bool().unwrap_or(false))
+            .then(a["name"].as_str().cmp(&b["name"].as_str()))
+    });
+    out
+}
+
+/* ------------------------------------------------------- Agent 定义与能力 */
+
+/// 内核能力目录（含分级），GUI 直接渲染
+#[tauri::command]
+pub fn capability_catalog() -> Vec<crate::capability::CapabilitySpec> {
+    crate::capability::catalog()
+}
+
+/// 已加载的 Agent 定义（内置 + 用户目录覆盖）
+#[tauri::command]
+pub fn agent_definitions(state: State<'_, AppState>) -> crate::agentdef::DefinitionsView {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    crate::agentdef::definitions_view(&settings)
+}
+
+/// 保存用户定义（覆盖同 id 的内置定义）。写入前先校验，并保留 .bak 副本。
+#[tauri::command]
+pub fn save_agent_definition(
+    state: State<'_, AppState>,
+    id: String,
+    content: String,
+) -> Result<crate::agentdef::DefinitionsView, String> {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    let parsed = crate::agentdef::parse(&content)?;
+    if parsed.agent.id != id {
+        return Err(format!(
+            "定义中的 agent.id 为「{}」，与要保存的目标「{}」不一致",
+            parsed.agent.id, id
+        ));
+    }
+    let dir = crate::agentdef::user_dir(&settings);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("创建定义目录失败：{}", e))?;
+    let target = dir.join(format!("{}.toml", id));
+    if target.exists() {
+        let _ = std::fs::copy(&target, dir.join(format!("{}.toml.bak", id)));
+    }
+    std::fs::write(&target, content).map_err(|e| format!("写入失败：{}", e))?;
+    Ok(crate::agentdef::definitions_view(&settings))
+}
+
+/// 删除用户定义，回退到内置定义
+#[tauri::command]
+pub fn reset_agent_definition(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<crate::agentdef::DefinitionsView, String> {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    let dir = crate::agentdef::user_dir(&settings);
+    let target = dir.join(format!("{}.toml", id));
+    if target.exists() {
+        std::fs::remove_file(&target).map_err(|e| format!("删除失败：{}", e))?;
+    }
+    Ok(crate::agentdef::definitions_view(&settings))
+}
+
+/// 把内置定义导出到用户目录（不覆盖已有文件）
+#[tauri::command]
+pub fn seed_agent_definitions(state: State<'_, AppState>) -> Result<usize, String> {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    let dir = crate::agentdef::user_dir(&settings);
+    crate::agentdef::seed_user_dir(&dir)
+}
+
+/* --------------------------------------------- Skill 导入 / 清理 / 删除 */
+
+fn pick_library(
+    settings: &crate::model::AppSettings,
+    requested: Option<String>,
+) -> std::path::PathBuf {
+    if let Some(raw) = requested.filter(|s| !s.trim().is_empty()) {
+        return crate::agentdef::resolve_path(&raw);
+    }
+    let libs = crate::actions::resolve_libraries(settings);
+    libs.iter()
+        .find(|p| p.is_dir())
+        .cloned()
+        .unwrap_or_else(|| libs[0].clone())
+}
+
+#[tauri::command]
+pub fn skill_environment(state: State<'_, AppState>) -> crate::actions::SkillEnv {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    crate::actions::skill_env(&settings)
+}
+
+/// 发现来源目录下的 Skill（导入前预览用，只读）
+#[tauri::command]
+pub fn skill_discover(
+    state: State<'_, AppState>,
+    source: String,
+    library: Option<String>,
+) -> Result<Vec<crate::actions::DiscoveredSkill>, String> {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    let lib = pick_library(&settings, library);
+    crate::actions::discover_skills(&crate::agentdef::resolve_path(&source), Some(&lib))
+}
+
+#[tauri::command]
+pub fn skill_import_plan(
+    state: State<'_, AppState>,
+    source: String,
+    library: Option<String>,
+    mode: String,
+    names: Vec<String>,
+) -> Result<crate::actions::ActionPlan, String> {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    let lib = pick_library(&settings, library);
+    crate::actions::plan_import(&crate::agentdef::resolve_path(&source), &lib, &mode, &names)
+}
+
+#[tauri::command]
+pub fn skill_import_apply(
+    state: State<'_, AppState>,
+    source: String,
+    library: Option<String>,
+    mode: String,
+    names: Vec<String>,
+) -> crate::actions::ActionResult {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    let lib = pick_library(&settings, library);
+    crate::actions::apply_import(&crate::agentdef::resolve_path(&source), &lib, &mode, &names)
+}
+
+/// 克隆 Git 仓库到临时目录（T3：网络 + 外部程序）
+#[tauri::command]
+pub fn git_clone_repo(
+    state: State<'_, AppState>,
+    url: String,
+    proxy: Option<String>,
+) -> crate::actions::CloneOutcome {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    let effective = proxy.unwrap_or(settings.network_proxy);
+    crate::actions::clone_to_temp(&url, &effective)
+}
+
+#[tauri::command]
+pub fn tmp_cleanup(path: String) -> crate::actions::ActionResult {
+    crate::actions::cleanup_tmp(&std::path::PathBuf::from(path))
+}
+
+#[tauri::command]
+pub fn skill_cleanup_plan(broken: Vec<crate::actions::BrokenRef>) -> crate::actions::ActionPlan {
+    crate::actions::plan_cleanup_broken(&broken)
+}
+
+#[tauri::command]
+pub fn skill_cleanup_apply(broken: Vec<crate::actions::BrokenRef>) -> crate::actions::ActionResult {
+    crate::actions::apply_cleanup_broken(&broken)
+}
+
+#[tauri::command]
+pub fn skill_relink_plan(
+    broken: Vec<crate::actions::BrokenRef>,
+    new_root: String,
+) -> crate::actions::ActionPlan {
+    crate::actions::plan_relink(&broken, &crate::agentdef::resolve_path(&new_root))
+}
+
+#[tauri::command]
+pub fn skill_relink_apply(
+    broken: Vec<crate::actions::BrokenRef>,
+    new_root: String,
+) -> crate::actions::ActionResult {
+    crate::actions::apply_relink(&broken, &crate::agentdef::resolve_path(&new_root))
+}
+
+#[tauri::command]
+pub fn skill_delete_plan(
+    state: State<'_, AppState>,
+    path: String,
+    link_impact: usize,
+) -> Result<crate::actions::ActionPlan, String> {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    let libraries = crate::actions::resolve_libraries(&settings);
+    crate::actions::plan_delete_skill(
+        &crate::agentdef::resolve_path(&path),
+        &libraries,
+        link_impact,
+    )
+}
+
+#[tauri::command]
+pub fn skill_delete_apply(path: String) -> crate::actions::ActionResult {
+    crate::actions::apply_delete_skill(&crate::agentdef::resolve_path(&path))
+}
+
+#[tauri::command]
+pub fn trash_list() -> Vec<crate::actions::TrashEntry> {
+    crate::actions::list_trash()
+}
+
+#[tauri::command]
+pub fn trash_restore(name: String) -> crate::actions::ActionResult {
+    crate::actions::restore_trash(&name)
+}
+
+/* -------------------------------------------------------- 回收站管理 */
+
+#[tauri::command]
+pub fn trash_stats() -> crate::actions::TrashStats {
+    crate::actions::trash_stats()
+}
+
+#[tauri::command]
+pub fn trash_detail(name: String) -> Result<crate::actions::TrashDetail, String> {
+    crate::actions::trash_detail(&name)
+}
+
+/// 恢复条目内的部分对象（stored 为空 = 整条恢复）
+#[tauri::command]
+pub fn trash_restore_items(
+    name: String,
+    stored: Vec<String>,
+) -> crate::actions::ActionResult {
+    crate::actions::restore_trash_items(&name, &stored)
+}
+
+#[tauri::command]
+pub fn trash_purge_plan(names: Vec<String>) -> Result<crate::actions::ActionPlan, String> {
+    crate::actions::plan_purge_trash(&names)
+}
+
+#[tauri::command]
+pub fn trash_purge_apply(names: Vec<String>) -> crate::actions::ActionResult {
+    crate::actions::apply_purge_trash(&names)
+}
+
+#[tauri::command]
+pub fn trash_purge_older_plan(days: u32) -> Result<crate::actions::ActionPlan, String> {
+    crate::actions::plan_purge_older_than(days)
+}
+
+#[tauri::command]
+pub fn trash_purge_older_apply(days: u32) -> crate::actions::ActionResult {
+    crate::actions::apply_purge_older_than(days)
+}
+
+#[tauri::command]
+pub fn manifests_list(limit: Option<usize>) -> Vec<crate::actions::ManifestInfo> {
+    crate::actions::list_manifests(limit.unwrap_or(30))
+}
+
+#[tauri::command]
+pub fn manifest_restore(path: String) -> crate::actions::ActionResult {
+    crate::actions::restore_manifest(&std::path::PathBuf::from(path))
+}
+
+/* --------------------------------------------- MCP 资源库与分发（T2） */
+
+/// 读取受管 MCP 资源
+#[tauri::command]
+pub fn mcp_resources(state: State<'_, AppState>) -> Vec<crate::model::McpResource> {
+    state.store.mcp_list()
+}
+
+/// 新增 / 更新一条 MCP 资源，返回最新列表
+#[tauri::command]
+pub fn mcp_save(
+    state: State<'_, AppState>,
+    resource: crate::model::McpResource,
+) -> Result<Vec<crate::model::McpResource>, String> {
+    if resource.name.trim().is_empty() {
+        return Err("MCP 名称不能为空".to_string());
+    }
+    if resource.transport == "stdio" && resource.command.trim().is_empty() {
+        return Err("stdio 型 MCP 必须填写启动命令".to_string());
+    }
+    if resource.transport != "stdio" && resource.url.trim().is_empty() {
+        return Err("http/sse 型 MCP 必须填写 URL".to_string());
+    }
+    state
+        .store
+        .mcp_upsert(&resource)
+        .map_err(|e| format!("保存失败：{}", e))?;
+    Ok(state.store.mcp_list())
+}
+
+#[tauri::command]
+pub fn mcp_remove(
+    state: State<'_, AppState>,
+    id: i64,
+) -> Result<Vec<crate::model::McpResource>, String> {
+    state.store.mcp_delete(id).map_err(|e| format!("删除失败：{}", e))?;
+    Ok(state.store.mcp_list())
+}
+
+/// 批量导入（从扫描结果导入现有 MCP 条目）
+#[tauri::command]
+pub fn mcp_import(
+    state: State<'_, AppState>,
+    items: Vec<crate::model::McpResource>,
+) -> Result<Vec<crate::model::McpResource>, String> {
+    let mut imported = 0usize;
+    for item in items {
+        if item.name.trim().is_empty() {
+            continue;
+        }
+        state
+            .store
+            .mcp_upsert(&item)
+            .map_err(|e| format!("导入 {} 失败：{}", item.name, e))?;
+        imported += 1;
+    }
+    if imported == 0 {
+        return Err("没有可导入的条目".to_string());
+    }
+    Ok(state.store.mcp_list())
+}
+
+/// 准备分发所需的上下文（定义 + 最近一次扫描的 Agent 状态 + 资源库）
+fn sync_context(
+    state: &State<'_, AppState>,
+    agent_ids: &[String],
+) -> Result<(crate::agentdef::Loaded, crate::model::ScanSnapshot, Vec<crate::model::McpResource>), String> {
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    let loaded = crate::agentdef::load(&settings);
+    let snapshot = state
+        .store
+        .latest_snapshot()
+        .ok_or_else(|| "请先执行一次扫描 —— 需要它来判断各 Agent 的安装状态".to_string())?;
+    let _ = agent_ids;
+    let resources = state.store.mcp_list();
+    Ok((loaded, snapshot, resources))
+}
+
+/// 生成分发计划（含每个文件的 diff，只读）
+#[tauri::command]
+pub fn mcp_sync_plan(
+    state: State<'_, AppState>,
+    agent_ids: Vec<String>,
+    overwrite_unmanaged: Option<bool>,
+) -> Result<crate::model::SyncPlan, String> {
+    let overwrite = overwrite_unmanaged.unwrap_or(false);
+    let (loaded, snapshot, resources) = sync_context(&state, &agent_ids)?;
+    crate::sync::plan_sync(&crate::sync::SyncRequest {
+        defs: &loaded.defs,
+        agents: &snapshot.agents,
+        resources: &resources,
+        agent_ids: &agent_ids,
+        overwrite_unmanaged: overwrite,
+        store: state.store.as_ref(),
+    })
+}
+
+/// 执行分发（先备份、再原子写入）
+#[tauri::command]
+pub fn mcp_sync_apply(
+    state: State<'_, AppState>,
+    agent_ids: Vec<String>,
+    overwrite_unmanaged: Option<bool>,
+) -> crate::actions::ActionResult {
+    let overwrite = overwrite_unmanaged.unwrap_or(false);
+    match sync_context(&state, &agent_ids) {
+        Ok((loaded, snapshot, resources)) => crate::sync::apply_sync(&crate::sync::SyncRequest {
+            defs: &loaded.defs,
+            agents: &snapshot.agents,
+            resources: &resources,
+            agent_ids: &agent_ids,
+            overwrite_unmanaged: overwrite,
+            store: state.store.as_ref(),
+        }),
+        Err(e) => crate::actions::ActionResult {
+            ok: false,
+            title: "分发 MCP 到 Agent".into(),
+            summary: e.clone(),
+            steps: vec![crate::actions::StepResult {
+                target: "(plan)".into(),
+                ok: false,
+                message: e,
+            }],
+            manifest: None,
+            restore_hint: String::new(),
+            warnings: Vec::new(),
+        },
+    }
+}
+
+/* --------------------------------------------------------------- 备份 */
+
+#[tauri::command]
+pub fn backups_list(
+    state: State<'_, AppState>,
+    limit: Option<usize>,
+) -> Vec<crate::model::BackupInfo> {
+    state.store.backup_list(limit.unwrap_or(50))
+}
+
+#[tauri::command]
+pub fn backup_restore(state: State<'_, AppState>, id: i64) -> crate::actions::ActionResult {
+    crate::sync::restore_backup(&state.store, id)
+}
+
+/* ------------------------------------------ 供应商资源库与保险库（T2） */
+
+/// 供应商密钥的保险库标识：与资源名绑定，重命名会另起一条
+fn provider_key_ref(name: &str) -> String {
+    format!("provider:{}", name)
+}
+
+/// 补全密钥状态（是否已存、掩码），明文永不返回
+fn enrich_providers(
+    mut list: Vec<crate::model::ProviderResource>,
+    vault: &crate::vault::Vault,
+) -> Vec<crate::model::ProviderResource> {
+    for item in list.iter_mut() {
+        let key_ref = if item.key_ref.is_empty() {
+            provider_key_ref(&item.name)
+        } else {
+            item.key_ref.clone()
+        };
+        item.has_key = vault.has(&key_ref);
+        item.masked_key = vault.masked(&key_ref);
+        item.key_ref = key_ref;
+    }
+    list
+}
+
+#[tauri::command]
+pub fn provider_resources(state: State<'_, AppState>) -> Vec<crate::model::ProviderResource> {
+    enrich_providers(state.store.provider_list(), &state.vault)
+}
+
+/// 保存供应商；`api_key` 为 Some 时写入保险库（空串表示删除密钥）
+#[tauri::command]
+pub fn provider_save(
+    state: State<'_, AppState>,
+    resource: crate::model::ProviderResource,
+    api_key: Option<String>,
+) -> Result<Vec<crate::model::ProviderResource>, String> {
+    if resource.name.trim().is_empty() {
+        return Err("供应商名称不能为空".to_string());
+    }
+    let mut payload = resource;
+    payload.key_ref = provider_key_ref(&payload.name);
+    if let Some(secret) = api_key {
+        state
+            .vault
+            .set(&payload.key_ref, &secret)
+            .map_err(|e| format!("写入保险库失败：{}", e))?;
+    }
+    state
+        .store
+        .provider_upsert(&payload)
+        .map_err(|e| format!("保存失败：{}", e))?;
+    Ok(enrich_providers(state.store.provider_list(), &state.vault))
+}
+
+#[tauri::command]
+pub fn provider_remove(
+    state: State<'_, AppState>,
+    id: i64,
+    remove_key: Option<bool>,
+) -> Result<Vec<crate::model::ProviderResource>, String> {
+    if let Some(target) = state
+        .store
+        .provider_list()
+        .into_iter()
+        .find(|p| p.id == id)
+    {
+        if remove_key.unwrap_or(true) {
+            let key_ref = if target.key_ref.is_empty() {
+                provider_key_ref(&target.name)
+            } else {
+                target.key_ref.clone()
+            };
+            let _ = state.vault.remove(&key_ref);
+        }
+    }
+    state
+        .store
+        .provider_delete(id)
+        .map_err(|e| format!("删除失败：{}", e))?;
+    Ok(enrich_providers(state.store.provider_list(), &state.vault))
+}
+
+/// 批量导入（从扫描到的供应商线索导入）
+#[tauri::command]
+pub fn provider_import(
+    state: State<'_, AppState>,
+    items: Vec<crate::model::ProviderResource>,
+) -> Result<Vec<crate::model::ProviderResource>, String> {
+    let mut imported = 0usize;
+    for item in items {
+        if item.name.trim().is_empty() {
+            continue;
+        }
+        let mut payload = item;
+        if payload.key_ref.is_empty() {
+            payload.key_ref = provider_key_ref(&payload.name);
+        }
+        state
+            .store
+            .provider_upsert(&payload)
+            .map_err(|e| format!("导入 {} 失败：{}", payload.name, e))?;
+        imported += 1;
+    }
+    if imported == 0 {
+        return Err("没有可导入的条目".to_string());
+    }
+    Ok(enrich_providers(state.store.provider_list(), &state.vault))
+}
+
+/// 显式查看明文（界面需二次确认；不写日志）
+#[tauri::command]
+pub fn provider_reveal_key(state: State<'_, AppState>, id: i64) -> Result<String, String> {
+    let target = state
+        .store
+        .provider_list()
+        .into_iter()
+        .find(|p| p.id == id)
+        .ok_or_else(|| "供应商不存在".to_string())?;
+    let key_ref = if target.key_ref.is_empty() {
+        provider_key_ref(&target.name)
+    } else {
+        target.key_ref.clone()
+    };
+    state
+        .vault
+        .get(&key_ref)
+        .ok_or_else(|| "保险库中没有该密钥，或密文无法解密（可能来自其它用户/机器）".to_string())
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultStatus {
+    pub path: String,
+    pub count: usize,
+    pub healthy: bool,
+    pub message: String,
+}
+
+#[tauri::command]
+pub fn vault_status(state: State<'_, AppState>) -> VaultStatus {
+    let ids = state.vault.ids();
+    match state.vault.verify() {
+        Ok(count) => VaultStatus {
+            path: crate::default_data_dir().join("vault.json").to_string_lossy().to_string(),
+            count,
+            healthy: true,
+            message: format!("{} 个密钥均可解密（DPAPI · 与当前用户绑定）", count),
+        },
+        Err(e) => VaultStatus {
+            path: crate::default_data_dir().join("vault.json").to_string_lossy().to_string(),
+            count: ids.len(),
+            healthy: false,
+            message: e,
+        },
+    }
+}
+
+/* --------------------------------------------------- 供应商分发（T2） */
+
+fn provider_sync_context(
+    state: &State<'_, AppState>,
+    agent_ids: &[String],
+) -> Result<
+    (
+        crate::agentdef::Loaded,
+        crate::model::ScanSnapshot,
+        Vec<crate::model::ProviderResource>,
+    ),
+    String,
+> {
+    let _ = agent_ids;
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    let loaded = crate::agentdef::load(&settings);
+    let snapshot = state
+        .store
+        .latest_snapshot()
+        .ok_or_else(|| "请先执行一次扫描 —— 需要它来判断各 Agent 的安装状态".to_string())?;
+    let providers = enrich_providers(state.store.provider_list(), &state.vault);
+    Ok((loaded, snapshot, providers))
+}
+
+#[tauri::command]
+pub fn provider_sync_plan(
+    state: State<'_, AppState>,
+    agent_ids: Vec<String>,
+    overwrite_unmanaged: Option<bool>,
+) -> Result<crate::model::SyncPlan, String> {
+    let (loaded, snapshot, providers) = provider_sync_context(&state, &agent_ids)?;
+    let vault = state.vault.clone();
+    let resolve = move |key_ref: &str| vault.get(key_ref);
+    crate::sync::plan_provider_sync(&crate::sync::ProviderSyncRequest {
+        defs: &loaded.defs,
+        agents: &snapshot.agents,
+        providers: &providers,
+        resolve_key: &resolve,
+        agent_ids: &agent_ids,
+        overwrite_unmanaged: overwrite_unmanaged.unwrap_or(false),
+        store: state.store.as_ref(),
+    })
+}
+
+#[tauri::command]
+pub fn provider_sync_apply(
+    state: State<'_, AppState>,
+    agent_ids: Vec<String>,
+    overwrite_unmanaged: Option<bool>,
+) -> crate::actions::ActionResult {
+    let fail = |message: String| crate::actions::ActionResult {
+        ok: false,
+        title: "分发供应商到 Agent".into(),
+        summary: message.clone(),
+        steps: vec![crate::actions::StepResult {
+            target: "(plan)".into(),
+            ok: false,
+            message,
+        }],
+        manifest: None,
+        restore_hint: String::new(),
+        warnings: Vec::new(),
+    };
+    match provider_sync_context(&state, &agent_ids) {
+        Ok((loaded, snapshot, providers)) => {
+            let vault = state.vault.clone();
+            let resolve = move |key_ref: &str| vault.get(key_ref);
+            crate::sync::apply_provider_sync(&crate::sync::ProviderSyncRequest {
+                defs: &loaded.defs,
+                agents: &snapshot.agents,
+                providers: &providers,
+                resolve_key: &resolve,
+                agent_ids: &agent_ids,
+                overwrite_unmanaged: overwrite_unmanaged.unwrap_or(false),
+                store: state.store.as_ref(),
+            })
+        }
+        Err(e) => fail(e),
+    }
+}
+
+/* --------------------------------------------------------------- 前端启动 */
+
+#[tauri::command]
+pub fn frontend_ready(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}

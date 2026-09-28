@@ -1,0 +1,119 @@
+# AgentHub · Agent 定义 —— DeepSeek Harness
+# CLI（dsh / dsh-tui）+ 桌面端；profile 目录下为各自独立配置
+
+[agent]
+id = "dsh"
+name = "DeepSeek Harness"
+vendor = "DeepSeek"
+kind = "cli"
+accent = "#4d6bfe"
+note = "含 CLI（dsh / dsh-tui）与桌面端；~/.dsh/profiles 下每个 profile 有独立配置"
+adapter = "dsh"              # 内置同步适配器（M2 启用）
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 dsh"
+args = ["dsh", "dsh-tui"]
+paths = ["%APPDATA%/npm", "%PROGRAMDATA%/npm/npm", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[evidence]]
+capability = "npm.global.has"
+strength = "strong"
+label = "全局 npm 包"
+args = ["@deepseek-ai/dsh", "@deepseek-harness-tui/dsh-tui"]
+
+[[paths]]
+label = "CLI 安装目录"
+path = "%LOCALAPPDATA%/Programs/DeepSeek Harness"
+role = "install"
+
+[[paths]]
+label = "桌面端安装目录"
+path = "%LOCALAPPDATA%/Programs/dsh-app"
+role = "install"
+
+[[paths]]
+label = "配置目录"
+path = "~/.dsh"
+role = "config"
+
+[[paths]]
+label = "TUI 配置目录"
+path = "~/.dsh-tui"
+role = "config"
+
+[[paths]]
+label = "凭据（仅读键名，值不落库）"
+path = "~/.dsh/.credentials.yaml"
+role = "config"
+format = "yaml"
+
+[[paths]]
+label = "导入设置"
+path = "~/.dsh/settings.yaml.imported"
+role = "config"
+format = "yaml"
+
+[[paths]]
+label = "桌面端设置"
+path = "%APPDATA%/dsh-desktop/settings.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "Profile: desktop"
+path = "~/.dsh/profiles/desktop/cordis.yml"
+role = "config"
+format = "yaml"
+
+[[paths]]
+label = "Profile: dsh-tui"
+path = "~/.dsh/profiles/dsh-tui/cordis.yml"
+role = "config"
+format = "yaml"
+
+[[paths]]
+label = "Profile: web"
+path = "~/.dsh/profiles/web/cordis.yml"
+role = "config"
+format = "yaml"
+
+[[paths]]
+label = "Skills 目录"
+path = "~/.dsh/skills"
+role = "skills"
+deploy = "copy"
+
+[[mcp]]
+file = "~/.dsh/settings.yaml.imported"
+root = "mcp_servers"
+format = "yaml"
+
+[[mcp]]
+file = "~/.dsh/profiles/desktop/cordis.yml"
+root = "mcp_servers"
+format = "yaml"
+
+# 凭据文件：只列键名，值永不读取
+[[provider]]
+file = "~/.dsh/.credentials.yaml"
+root = "refs"
+format = "yaml"
+kind = "api-key"
+label = "DSH 密钥"
+keysOnly = true
+
+[[provider]]
+file = "~/.dsh/.credentials.yaml"
+root = "records"
+format = "yaml"
+kind = "credential"
+label = "DSH 账号记录"
+keysOnly = true
+
+[capabilities]
+maxTier = "parse"
+skillMethods = ["copy", "link"]
+configWrite = ["merge-keys", "managed-block"]
+notes = "M2 起支持同步 MCP 与 Provider 到各 profile 的独立配置"

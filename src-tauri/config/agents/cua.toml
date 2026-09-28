@@ -1,0 +1,44 @@
+# AgentHub · Agent 定义 —— CUA Driver（Computer-Use Agent 驱动）
+
+[agent]
+id = "cua"
+name = "CUA Driver"
+vendor = "Cua"
+kind = "cli"
+accent = "#fbbf24"
+note = "Computer-Use Agent 驱动；Rust 版状态单独存放在 ~/.cua-driver-rs"
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 cua"
+args = ["cua", "cua-driver"]
+paths = ["%LOCALAPPDATA%/Programs/Cua", "%USERPROFILE%/.local/bin", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[paths]]
+label = "程序安装目录"
+path = "%LOCALAPPDATA%/Programs/Cua"
+role = "install"
+
+[[paths]]
+label = "安装记录"
+path = "~/.cua-driver/.installation_recorded"
+role = "config"
+format = "conf"
+
+[[paths]]
+label = "包目录"
+path = "~/.cua-driver/packages"
+role = "data"
+
+[[paths]]
+label = "Rust 版状态"
+path = "~/.cua-driver-rs/version_check.json"
+role = "config"
+format = "json"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = []
+configWrite = []

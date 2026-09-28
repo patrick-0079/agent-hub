@@ -1,0 +1,38 @@
+# AgentHub · Agent 定义 —— Cline
+# 编辑器扩展：globalStorage 目录仅由扩展自身创建，因此作为「程序本体」级强证据
+
+[agent]
+id = "cline"
+name = "Cline"
+vendor = "Cline"
+kind = "extension"
+accent = "#22c55e"
+note = "VS Code / Cursor 扩展；globalStorage 目录仅由扩展自身创建"
+adapter = ""
+
+[[paths]]
+label = "扩展数据目录（本体）"
+path = "%APPDATA%/Code/User/globalStorage/saoudrizwan.claude-dev"
+role = "install"
+
+[[paths]]
+label = "Cursor 内扩展数据"
+path = "%APPDATA%/Cursor/User/globalStorage/saoudrizwan.claude-dev"
+role = "install"
+
+[[paths]]
+label = "MCP 设置"
+path = "%APPDATA%/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
+role = "config"
+format = "json"
+
+[[mcp]]
+file = "%APPDATA%/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json"
+root = "mcpServers"
+format = "json"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = []
+configWrite = ["merge-keys"]
+notes = "扩展型 Agent 的配置写入需要宿主编辑器已关闭，M2 会在写入前检查进程占用"

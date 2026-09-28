@@ -1,0 +1,28 @@
+# AgentHub · Agent 定义 —— QMind
+# 仅发现数据目录，未找到程序本体，因此当前会判定为「残留」
+
+[agent]
+id = "qmind"
+name = "QMind"
+vendor = "未知"
+kind = "cli"
+accent = "#64748b"
+note = "仅发现 ~/.qmind/agent 数据目录；确认程序名后可在此补充 evidence.which 与 npm.global.has"
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 qmind"
+args = ["qmind"]
+paths = ["%APPDATA%/npm", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[paths]]
+label = "Agent 数据"
+path = "~/.qmind/agent"
+role = "data"
+
+[capabilities]
+maxTier = "observe"
+skillMethods = []
+configWrite = []

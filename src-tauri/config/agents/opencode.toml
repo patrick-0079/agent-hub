@@ -1,0 +1,120 @@
+# AgentHub · Agent 定义 —— opencode
+#
+# 本文件是数据，不是代码。AgentHub 内核不含任何 Agent 专属逻辑：
+# 内核只提供带分级的基础能力（见「Agent 定义与能力」页 / capability.rs 能力目录），
+# 本文件负责声明「去哪找、怎么判定、每条路径扮演什么角色、允许写到哪一级」。
+#
+# 判定证据的默认派生规则（无需重复声明）：
+#   paths[].role = "install" → 强证据（程序安装目录）
+#   paths[].role = "config"  → 中证据（配置文件）
+#   paths[].role = "data"    → 弱证据（数据目录）
+#   paths[].role = "skills"  → 弱证据（技能目录）
+# 无法用路径表达的判定（which / npm.global.has / link.read …）才需要显式 [[evidence]]。
+
+[agent]
+id = "opencode"
+name = "opencode"
+vendor = "SST"
+kind = "cli"                 # cli | ide | extension | host
+accent = "#8b8bff"
+note = "使用 XDG 目录（~/.config/opencode）而非 ~/.opencode 作为主配置位置"
+adapter = ""                 # 内置同步适配器标识（M2 起可用）
+
+# ── 显式证据：程序本体与全局包 ──────────────────────────────────────
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 opencode"
+args = ["opencode"]
+paths = ["%APPDATA%/npm", "%PROGRAMDATA%/npm/npm", "%USERPROFILE%/.opencode/bin", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[evidence]]
+capability = "npm.global.has"
+strength = "strong"
+label = "全局 npm 包"
+args = ["opencode-ai", "@opencode-ai/cli-node-windows-x64"]
+
+# ── 路径与角色 ──────────────────────────────────────────────────────
+[[paths]]
+label = "主配置"
+path = "~/.config/opencode/opencode.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "项目指令"
+path = "~/.config/opencode/AGENTS.md"
+role = "config"
+format = "md"
+
+[[paths]]
+label = "插件与依赖"
+path = "~/.config/opencode/package.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "Skills 目录"
+path = "~/.config/opencode/skills"
+role = "skills"
+deploy = "link"
+
+[[paths]]
+label = "程序安装目录"
+path = "~/.opencode"
+role = "install"
+
+[[paths]]
+label = "数据目录"
+path = "~/.local/share/opencode"
+role = "install"
+
+[[paths]]
+label = "运行状态"
+path = "~/.local/state/opencode"
+role = "data"
+
+[[paths]]
+label = "缓存"
+path = "~/.cache/opencode"
+role = "data"
+
+# ── MCP 配置来源（内核按声明提取，不做格式猜测） ──────────────────────
+[[mcp]]
+file = "~/.config/opencode/opencode.json"
+root = "mcp"
+format = "json"
+entryStyle = "opencode"      # type=local/remote，command 为数组，环境变量键名为 environment
+
+# ── 供应商线索来源 ──────────────────────────────────────────────────
+[[provider]]
+file = "~/.config/opencode/opencode.json"
+root = "provider"
+format = "json"
+kind = "base-url"
+baseUrlKey = "options.baseURL"
+modelsKey = "models"
+label = "opencode"
+
+# ── 能力分级授权：该 Agent 允许 AgentHub 操作到哪一级 ──────────────────
+[capabilities]
+maxTier = "parse"                       # observe | parse | deploy | mutate
+skillMethods = ["link", "copy"]         # 允许的 Skill 部署方式（M2 生效）
+configWrite = ["merge-keys"]            # 允许的配置写入方式（M2 生效）
+notes = "M0 只执行 observe/parse；deploy 起需要用户在界面上显式确认"
+# ── Provider 写入声明（待补全）──
+# opencode 的自定义供应商条目需要 `npm`（SDK 包名）与 `models` 结构才能通过其校验，
+# 而这两项随供应商而异，因此这里先不声明写入，避免生成 opencode 无法加载的配置。
+# 需要时可以照下面的形状补上（键名支持点号路径）：
+#
+# [[providerWrite]]
+# file = "~/.config/opencode/opencode.json"
+# root = "provider"
+# format = "json"
+# objectPerProvider = true
+# entries = [
+#   { key = "name", from = "name" },
+#   { key = "options.baseURL", from = "baseUrl" },
+#   { key = "options.apiKey", from = "apiKey" },
+#   { key = "models", from = "models" },
+# ]

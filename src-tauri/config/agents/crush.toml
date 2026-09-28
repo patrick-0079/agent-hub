@@ -1,0 +1,39 @@
+# AgentHub · Agent 定义 —— Crush
+
+[agent]
+id = "crush"
+name = "Crush"
+vendor = "Charm"
+kind = "cli"
+accent = "#f0abfc"
+note = ""
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 crush"
+args = ["crush"]
+paths = ["%APPDATA%/npm", "%LOCALAPPDATA%/Microsoft/WinGet/Links", "%USERPROFILE%/.local/bin", "%USERPROFILE%/go/bin"]
+
+[[evidence]]
+capability = "npm.global.has"
+strength = "strong"
+label = "全局 npm 包"
+args = ["@charmland/crush"]
+
+[[paths]]
+label = "配置"
+path = "~/.config/crush/crush.json"
+role = "config"
+format = "json"
+
+[[mcp]]
+file = "~/.config/crush/crush.json"
+root = "mcp"
+format = "json"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = ["copy", "link"]
+configWrite = ["merge-keys"]

@@ -1,0 +1,56 @@
+# AgentHub · Agent 定义 —— OhMyPi（oh-my-openagent）
+# 命令行程序名为 omp.exe，安装目录在 %LOCALAPPDATA%/omp
+
+[agent]
+id = "ohmypi"
+name = "OhMyPi"
+vendor = "oh-my-openagent"
+kind = "cli"
+accent = "#f472b6"
+note = "oh-my-openagent 项目，命令行程序为 omp.exe；运行 ~/.omp 作为数据目录"
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 omp"
+args = ["omp", "ohmypi"]
+paths = ["%LOCALAPPDATA%/omp", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[evidence]]
+capability = "npm.global.has"
+strength = "strong"
+label = "全局 npm 包"
+args = ["oh-my-openagent"]
+
+[[paths]]
+label = "程序安装目录"
+path = "%LOCALAPPDATA%/omp"
+role = "install"
+
+[[paths]]
+label = "统计数据库"
+path = "~/.omp/stats.db"
+role = "config"
+format = "db"
+
+[[paths]]
+label = "Agent 目录"
+path = "~/.omp/agent"
+role = "data"
+
+[[paths]]
+label = "运行目录"
+path = "~/.omp/run"
+role = "data"
+
+[[paths]]
+label = "日志"
+path = "~/.omp/logs"
+role = "data"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = []
+configWrite = []
+notes = "未发现公开的 Skill 目录约定；如需纳管请在 paths 里补 role = \"skills\" 的条目"

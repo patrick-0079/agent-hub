@@ -1,0 +1,71 @@
+# AgentHub · Agent 定义 —— ZCode
+# 桌面端 + CLI 双形态，配置位于 ~/.zcode/cli/config.json
+
+[agent]
+id = "zcode"
+name = "ZCode"
+vendor = "ZCode"
+kind = "cli"
+accent = "#22d3ee"
+note = "桌面端（%APPDATA%/ZCode）+ CLI 数据目录（~/.zcode）；配置文件在 cli/config.json"
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 zcode"
+args = ["zcode"]
+paths = ["%LOCALAPPDATA%/Microsoft/WinGet/Links", "%USERPROFILE%/.zcode/bin", "%APPDATA%/npm"]
+
+[[paths]]
+label = "桌面端安装目录"
+path = "%APPDATA%/ZCode"
+role = "install"
+
+[[paths]]
+label = "自动更新组件"
+path = "%LOCALAPPDATA%/@zcodedesktop-updater"
+role = "install"
+
+[[paths]]
+label = "CLI 配置"
+path = "~/.zcode/cli/config.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "CLI 根目录"
+path = "~/.zcode/cli"
+role = "config"
+
+[[paths]]
+label = "会话记录"
+path = "~/.zcode/cli/agents"
+role = "data"
+
+[[paths]]
+label = "工作区"
+path = "~/.zcode/workspace"
+role = "data"
+
+[[paths]]
+label = "插件空间"
+path = "~/.zcode/plugin-workspace"
+role = "data"
+
+[[paths]]
+label = "Skills 目录"
+path = "~/.zcode/skills"
+role = "skills"
+deploy = "link"
+
+[[mcp]]
+file = "~/.zcode/cli/config.json"
+root = "mcp.servers"
+format = "json"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = ["link", "copy"]
+configWrite = ["merge-keys"]
+notes = "MCP 节点位于 mcp.servers；配置里另有 plugins / hooks 段，M2 同步时不会被改动"

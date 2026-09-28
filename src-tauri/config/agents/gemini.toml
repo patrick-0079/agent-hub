@@ -1,0 +1,45 @@
+# AgentHub · Agent 定义 —— Gemini CLI
+
+[agent]
+id = "gemini"
+name = "Gemini CLI"
+vendor = "Google"
+kind = "cli"
+accent = "#4285f4"
+note = ""
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 gemini"
+args = ["gemini"]
+paths = ["%APPDATA%/npm", "%PROGRAMDATA%/npm/npm", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[evidence]]
+capability = "npm.global.has"
+strength = "strong"
+label = "全局 npm 包"
+args = ["@google/gemini-cli"]
+
+[[paths]]
+label = "设置"
+path = "~/.gemini/settings.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "Skills 目录"
+path = "~/.gemini/skills"
+role = "skills"
+deploy = "copy"
+
+[[mcp]]
+file = "~/.gemini/settings.json"
+root = "mcpServers"
+format = "json"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = ["copy", "link"]
+configWrite = ["merge-keys"]

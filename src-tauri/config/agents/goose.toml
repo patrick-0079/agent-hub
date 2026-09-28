@@ -1,0 +1,39 @@
+# AgentHub · Agent 定义 —— Goose
+
+[agent]
+id = "goose"
+name = "Goose"
+vendor = "Block"
+kind = "cli"
+accent = "#cbd5e1"
+note = ""
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 goose"
+args = ["goose"]
+paths = ["%USERPROFILE%/.local/bin", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[paths]]
+label = "配置"
+path = "~/.config/goose/config.yaml"
+role = "config"
+format = "yaml"
+
+[[paths]]
+label = "Skills 目录"
+path = "~/.config/goose/skills"
+role = "skills"
+deploy = "copy"
+
+[[mcp]]
+file = "~/.config/goose/config.yaml"
+root = "extensions"
+format = "yaml"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = ["copy", "link"]
+configWrite = ["merge-keys"]

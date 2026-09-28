@@ -1,0 +1,69 @@
+# AgentHub · Agent 定义 —— VS Code
+#
+# kind = "host"：这是**宿主应用，本身不是 Agent**。
+# 它只承载 Cline / Roo Code / Continue 等扩展型 Agent。
+# 内核与界面会把 host 类目标从「Agent 计数」中排除，单独分组展示。
+
+[agent]
+id = "vscode"
+name = "VS Code"
+vendor = "Microsoft"
+kind = "host"
+accent = "#007acc"
+note = "通用编辑器宿主。Cline / Roo Code / Continue 等 Agent 以扩展形式运行在它内部。"
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 code"
+args = ["code"]
+paths = ["%LOCALAPPDATA%/Programs/Microsoft VS Code/bin", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[paths]]
+label = "程序安装目录"
+path = "%LOCALAPPDATA%/Programs/Microsoft VS Code"
+role = "install"
+
+[[paths]]
+label = "用户数据目录"
+path = "%APPDATA%/Code"
+role = "install"
+
+[[paths]]
+label = "便携版数据目录"
+path = "~/.vscode"
+role = "data"
+
+[[paths]]
+label = "用户设置"
+path = "%APPDATA%/Code/User/settings.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "MCP 配置"
+path = "%APPDATA%/Code/User/mcp.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "工作区数据"
+path = "%APPDATA%/Code/User/workspaceStorage"
+role = "data"
+
+[[mcp]]
+file = "%APPDATA%/Code/User/mcp.json"
+root = "servers"
+format = "json"
+
+[[mcp]]
+file = "%APPDATA%/Code/User/settings.json"
+root = "mcp.servers"
+format = "json"
+
+[capabilities]
+maxTier = "observe"
+skillMethods = []
+configWrite = []
+notes = "宿主本身不提供 Skill / MCP 同步能力；请对运行在其内部的扩展 Agent 操作"

@@ -1,0 +1,59 @@
+# AgentHub · Agent 定义 —— Qoder（含国内版）
+
+[agent]
+id = "qoder"
+name = "Qoder"
+vendor = "Alibaba"
+kind = "cli"
+accent = "#a78bfa"
+note = "国内版数据目录为 ~/.qoder-cn（含 bin / app）"
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 qoder"
+args = ["qoder", "qodercli"]
+paths = ["%USERPROFILE%/.qoder-cn/bin", "%LOCALAPPDATA%/Programs/qoder", "%APPDATA%/npm", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[paths]]
+label = "国内版程序目录"
+path = "~/.qoder-cn/app"
+role = "install"
+
+[[paths]]
+label = "国内版命令目录"
+path = "~/.qoder-cn/bin"
+role = "install"
+
+[[paths]]
+label = "国际版程序目录"
+path = "%LOCALAPPDATA%/Programs/qoder"
+role = "install"
+
+[[paths]]
+label = "认证"
+path = "~/.qoder-cn/.auth"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "模型缓存"
+path = "~/.qoder-cn/.models"
+role = "config"
+
+[[paths]]
+label = "文件历史"
+path = "~/.qoder-cn/file-history"
+role = "data"
+
+[[paths]]
+label = "CLI 统计"
+path = "~/.qoder-cli/ai-stats"
+role = "data"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = []
+configWrite = []
+notes = "尚未发现公开的 MCP / Skill 目录约定，待补充后可在本文件追加 [[mcp]] 与 role = \"skills\" 路径"

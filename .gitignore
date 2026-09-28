@@ -1,0 +1,15 @@
+node_modules/
+dist/
+src-tauri/target/
+*.local
+.DS_Store
+.vite/
+*.log
+# 自检沙箱与临时产物
+.selftest-data/
+*.tmpdir/
+*.tmp
+*.bak
+.probe
+scan-verify.*
+sv.json

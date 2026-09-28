@@ -1,0 +1,3 @@
+# pnpm 11 起构建脚本白名单迁移到本文件
+allowBuilds:
+  esbuild: true

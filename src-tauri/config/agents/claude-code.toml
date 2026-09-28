@@ -1,0 +1,106 @@
+# AgentHub · Agent 定义 —— Claude Code
+#
+# 判定要点：~/.claude 下若只有 skills / transcripts，说明是历史残留而非当前安装。
+# 本定义把「程序本体」（cli / npm / 安装目录）与「配置、数据」分开声明，
+# 内核据此区分 已安装 / 仅发现配置 / 残留。
+
+[agent]
+id = "claude-code"
+name = "Claude Code"
+vendor = "Anthropic"
+kind = "cli"
+accent = "#d97757"
+note = "只有 ~/.claude/skills 与 transcripts 时判定为「残留」：程序本体已不存在"
+adapter = "claude-code"
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 claude"
+args = ["claude"]
+paths = ["%APPDATA%/npm", "%PROGRAMDATA%/npm/npm", "%USERPROFILE%/.local/bin", "%USERPROFILE%/.claude/local", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[evidence]]
+capability = "npm.global.has"
+strength = "strong"
+label = "全局 npm 包"
+args = ["@anthropic-ai/claude-code"]
+
+[[paths]]
+label = "程序安装目录"
+path = "%LOCALAPPDATA%/Programs/claude-code"
+role = "install"
+
+[[paths]]
+label = "本地安装"
+path = "~/.claude/local"
+role = "install"
+
+[[paths]]
+label = "用户级 MCP"
+path = "~/.claude.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "用户设置"
+path = "~/.claude/settings.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "项目级 MCP"
+path = "./.mcp.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "Skills 目录"
+path = "~/.claude/skills"
+role = "skills"
+deploy = "link"
+
+[[paths]]
+label = "会话记录"
+path = "~/.claude/transcripts"
+role = "data"
+
+[[mcp]]
+file = "~/.claude.json"
+root = "mcpServers"
+format = "json"
+
+[[mcp]]
+file = "~/.claude/settings.json"
+root = "mcpServers"
+format = "json"
+
+[[mcp]]
+file = "./.mcp.json"
+root = "mcpServers"
+format = "json"
+
+[[provider]]
+file = "~/.claude/settings.json"
+root = "env"
+format = "json"
+kind = "base-url"
+label = "Claude Code 环境变量"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = ["link", "copy"]
+configWrite = ["merge-keys"]
+notes = "官方支持 skills 目录链接部署；M2 起可把统一技能库链接到 ~/.claude/skills"
+# ── Provider 写入声明：把供应商资源分发到 Claude Code 的 settings.json ──
+# Claude Code 通过 settings.json 的 env 段读取 Base URL 与 Key，因此这里平铺写入。
+# 平铺式目标只能承载一个供应商（启用多个时向导会提示只启用一个）。
+[[providerWrite]]
+file = "~/.claude/settings.json"
+root = "env"
+format = "json"
+objectPerProvider = false
+entries = [
+  { key = "ANTHROPIC_BASE_URL", from = "baseUrl" },
+  { key = "ANTHROPIC_API_KEY", from = "apiKey" },
+]

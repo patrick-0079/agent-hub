@@ -1,0 +1,33 @@
+# AgentHub · Agent 定义 —— Aider
+
+[agent]
+id = "aider"
+name = "Aider"
+vendor = "Aider"
+kind = "cli"
+accent = "#34d399"
+note = "Python 工具，通常通过 pip / uv 安装"
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 aider"
+args = ["aider"]
+paths = ["%USERPROFILE%/.local/bin", "%USERPROFILE%/anaconda3/Scripts", "%PROGRAMDATA%/anaconda3/Scripts", "%USERPROFILE%/AppData/Roaming/Python/Scripts"]
+
+[[paths]]
+label = "配置"
+path = "~/.aider.conf.yml"
+role = "config"
+format = "yaml"
+
+[[paths]]
+label = "数据目录"
+path = "~/.aider"
+role = "data"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = []
+configWrite = ["managed-block"]

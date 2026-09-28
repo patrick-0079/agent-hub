@@ -1,0 +1,55 @@
+# AgentHub · Agent 定义 —— Continue
+
+[agent]
+id = "continue"
+name = "Continue"
+vendor = "Continue"
+kind = "extension"
+accent = "#8b5cf6"
+note = "既是编辑器扩展，也提供独立 CLI（cn）"
+adapter = ""
+
+[[evidence]]
+capability = "which"
+strength = "strong"
+label = "命令行程序 cn"
+args = ["cn", "continue"]
+paths = ["%APPDATA%/npm", "%LOCALAPPDATA%/Microsoft/WinGet/Links"]
+
+[[paths]]
+label = "扩展数据目录（本体）"
+path = "~/.continue"
+role = "install"
+
+[[paths]]
+label = "配置"
+path = "~/.continue/config.json"
+role = "config"
+format = "json"
+
+[[paths]]
+label = "配置（YAML 版）"
+path = "~/.continue/config.yaml"
+role = "config"
+format = "yaml"
+
+[[paths]]
+label = "MCP 目录"
+path = "~/.continue/mcpServers"
+role = "mcp"
+
+[[paths]]
+label = "Skills 目录"
+path = "~/.continue/skills"
+role = "skills"
+deploy = "copy"
+
+[[mcp]]
+file = "~/.continue/config.json"
+root = "mcpServers"
+format = "json"
+
+[capabilities]
+maxTier = "parse"
+skillMethods = ["copy", "link"]
+configWrite = ["merge-keys"]
