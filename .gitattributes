@@ -1,12 +1,13 @@
-# 统一换行符：仓库内统一 LF，检出时按平台转换
-* text=auto eol=lf
+# 换行符策略：仓库内存 LF，检出时由 git 按平台转换
+# （与 Windows 全局 core.autocrlf=true 一致，工作副本为 CRLF）
+* text=auto
 
-# 二进制/生成物不做转换
+# 二进制文件不做任何转换
 *.png binary
 *.ico binary
 *.db binary
 
-# 生成物不参与语言统计
+# 生成物不计入语言统计
 src-tauri/target/** linguist-generated
 dist/** linguist-generated
 pnpm-lock.yaml linguist-generated
