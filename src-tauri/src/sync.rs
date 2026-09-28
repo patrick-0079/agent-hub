@@ -196,6 +196,7 @@ pub fn plan_sync(req: &SyncRequest) -> Result<SyncPlan, String> {
             let mut plan = SyncTargetPlan {
                 agent_id: agent_id.clone(),
                 agent_name: agent.name.clone(),
+                kind: "config".to_string(),
                 file: file.to_string_lossy().to_string(),
                 root: source.root.clone(),
                 format: format.clone(),
@@ -700,6 +701,7 @@ pub fn plan_provider_sync(req: &ProviderSyncRequest) -> Result<SyncPlan, String>
             let mut plan = SyncTargetPlan {
                 agent_id: agent_id.clone(),
                 agent_name: agent.name.clone(),
+                kind: "config".to_string(),
                 file: file.to_string_lossy().to_string(),
                 root: write.root.clone(),
                 format: format.clone(),

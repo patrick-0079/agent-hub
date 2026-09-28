@@ -462,6 +462,174 @@ impl Store {
         Ok(())
     }
 
+    /* -------------------------------------------------------- Profile 档案 */
+
+    fn profile_items(&self, conn: &Connection, profile_id: i64) -> Vec<crate::model::ProfileItem> {
+        let mut stmt = match conn.prepare(
+            "SELECT id, resource_type, resource_ref FROM profile_item
+             WHERE profile_id = ?1 ORDER BY resource_type, resource_ref COLLATE NOCASE",
+        ) {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
+        };
+        stmt.query_map(params![profile_id], |row| {
+            let resource_type: String = row.get(1)?;
+            let resource_ref: String = row.get(2)?;
+            // Skill 用路径存储，展示时取末段目录名
+            let display = if resource_type == "skill" {
+                std::path::Path::new(&resource_ref)
+                    .file_name()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_else(|| resource_ref.clone())
+            } else {
+                resource_ref.clone()
+            };
+            Ok(crate::model::ProfileItem {
+                id: row.get(0)?,
+                resource_type,
+                resource_ref,
+                display,
+            })
+        })
+        .map(|rows| rows.flatten().collect())
+        .unwrap_or_default()
+    }
+
+    fn profile_agents(&self, conn: &Connection, profile_id: i64) -> Vec<String> {
+        let mut stmt = match conn.prepare(
+            "SELECT agent_id FROM agent_target WHERE bound_profile = ?1 ORDER BY agent_id",
+        ) {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
+        };
+        stmt.query_map(params![profile_id], |row| row.get::<_, String>(0))
+            .map(|rows| rows.flatten().collect())
+            .unwrap_or_default()
+    }
+
+    pub fn profile_list(&self) -> Vec<crate::model::ProfileResource> {
+        let conn = match self.conn.lock() {
+            Ok(c) => c,
+            Err(_) => return Vec::new(),
+        };
+        let mut stmt = match conn.prepare(
+            "SELECT id, name, description, updated_at FROM profile ORDER BY name COLLATE NOCASE",
+        ) {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
+        };
+        let rows: Vec<(i64, String, String, String)> = stmt
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .map(|it| it.flatten().collect())
+            .unwrap_or_default();
+
+        rows.into_iter()
+            .map(|(id, name, description, updated_at)| {
+                let items = self.profile_items(&conn, id);
+                let counts = crate::model::ProfileCounts {
+                    mcp: items.iter().filter(|i| i.resource_type == "mcp").count(),
+                    provider: items.iter().filter(|i| i.resource_type == "provider").count(),
+                    skill: items.iter().filter(|i| i.resource_type == "skill").count(),
+                };
+                crate::model::ProfileResource {
+                    id,
+                    name,
+                    description,
+                    agents: self.profile_agents(&conn, id),
+                    counts,
+                    updated_at,
+                }
+            })
+            .collect()
+    }
+
+    pub fn profile_detail(&self, id: i64) -> Option<crate::model::ProfileDetail> {
+        let profile = self.profile_list().into_iter().find(|p| p.id == id)?;
+        let conn = self.conn.lock().ok()?;
+        Some(crate::model::ProfileDetail {
+            items: self.profile_items(&conn, id),
+            profile,
+        })
+    }
+
+    /// 保存档案（含资源项与 Agent 绑定）。返回档案 id。
+    pub fn profile_save(
+        &self,
+        profile: &crate::model::ProfileResource,
+        items: &[crate::model::ProfileItem],
+    ) -> Result<i64> {
+        let conn = self.conn()?;
+        let now = crate::util::now_human();
+        let id = if profile.id > 0 {
+            conn.execute(
+                "UPDATE profile SET name=?1, description=?2, updated_at=?3 WHERE id=?4",
+                params![profile.name, profile.description, now, profile.id],
+            )?;
+            profile.id
+        } else if let Some(existing) = conn
+            .query_row(
+                "SELECT id FROM profile WHERE name = ?1 COLLATE NOCASE",
+                params![profile.name],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?
+        {
+            conn.execute(
+                "UPDATE profile SET description=?1, updated_at=?2 WHERE id=?3",
+                params![profile.description, now, existing],
+            )?;
+            existing
+        } else {
+            conn.execute(
+                "INSERT INTO profile (name, description, created_at, updated_at)
+                 VALUES (?1, ?2, ?3, ?3)",
+                params![profile.name, profile.description, now],
+            )?;
+            conn.last_insert_rowid()
+        };
+
+        // 资源项整体替换（简单可靠，避免增量同步的边界问题）
+        conn.execute(
+            "DELETE FROM profile_item WHERE profile_id = ?1",
+            params![id],
+        )?;
+        for item in items {
+            conn.execute(
+                "INSERT INTO profile_item (profile_id, resource_type, resource_ref, override_json)
+                 VALUES (?1, ?2, ?3, '{}')",
+                params![id, item.resource_type, item.resource_ref],
+            )?;
+        }
+
+        // Agent 绑定：先清掉本档案的所有绑定，再按传入列表重建
+        conn.execute(
+            "UPDATE agent_target SET bound_profile = NULL WHERE bound_profile = ?1",
+            params![id],
+        )?;
+        for agent_id in &profile.agents {
+            conn.execute(
+                "INSERT INTO agent_target (agent_id, name, bound_profile, enabled)
+                 VALUES (?1, ?1, ?2, 1)
+                 ON CONFLICT(agent_id) DO UPDATE SET bound_profile = excluded.bound_profile",
+                params![agent_id, id],
+            )?;
+        }
+        Ok(id)
+    }
+
+    pub fn profile_delete(&self, id: i64) -> Result<()> {
+        let conn = self.conn()?;
+        conn.execute(
+            "UPDATE agent_target SET bound_profile = NULL WHERE bound_profile = ?1",
+            params![id],
+        )?;
+        conn.execute("DELETE FROM profile_item WHERE profile_id = ?1", params![id])?;
+        conn.execute("DELETE FROM profile WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
     /* -------------------------------------------------------- 备份 */
 
     pub fn backup_add(

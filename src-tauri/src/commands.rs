@@ -874,6 +874,178 @@ pub fn provider_sync_apply(
     }
 }
 
+/* ------------------------------------------------- Profile 档案（T2） */
+
+#[tauri::command]
+pub fn profile_list(state: State<'_, AppState>) -> Vec<crate::model::ProfileResource> {
+    state.store.profile_list()
+}
+
+#[tauri::command]
+pub fn profile_detail(
+    state: State<'_, AppState>,
+    id: i64,
+) -> Option<crate::model::ProfileDetail> {
+    state.store.profile_detail(id)
+}
+
+#[tauri::command]
+pub fn profile_save(
+    state: State<'_, AppState>,
+    profile: crate::model::ProfileResource,
+    items: Vec<crate::model::ProfileItem>,
+) -> Result<Vec<crate::model::ProfileResource>, String> {
+    if profile.name.trim().is_empty() {
+        return Err("档案名称不能为空".to_string());
+    }
+    state
+        .store
+        .profile_save(&profile, &items)
+        .map_err(|e| format!("保存档案失败：{}", e))?;
+    Ok(state.store.profile_list())
+}
+
+#[tauri::command]
+pub fn profile_delete(
+    state: State<'_, AppState>,
+    id: i64,
+) -> Result<Vec<crate::model::ProfileResource>, String> {
+    state
+        .store
+        .profile_delete(id)
+        .map_err(|e| format!("删除档案失败：{}", e))?;
+    Ok(state.store.profile_list())
+}
+
+/// 把档案里的资源项解析成真实资源（找不到的会被跳过并计入告警）
+fn resolve_profile_resources(
+    state: &State<'_, AppState>,
+    profile_id: i64,
+) -> Result<
+    (
+        crate::agentdef::Loaded,
+        crate::model::ScanSnapshot,
+        Vec<crate::model::McpResource>,
+        Vec<crate::model::ProviderResource>,
+        Vec<crate::profile::ProfileSkill>,
+        Vec<String>,
+    ),
+    String,
+> {
+    let detail = state
+        .store
+        .profile_detail(profile_id)
+        .ok_or_else(|| "档案不存在".to_string())?;
+    let settings = state.settings.lock().map(|s| s.clone()).unwrap_or_default();
+    let loaded = crate::agentdef::load(&settings);
+    let snapshot = state
+        .store
+        .latest_snapshot()
+        .ok_or_else(|| "请先执行一次扫描 —— 需要它来判断各 Agent 的安装状态".to_string())?;
+
+    let all_mcp = state.store.mcp_list();
+    let all_providers = enrich_providers(state.store.provider_list(), &state.vault);
+    let mut warnings: Vec<String> = Vec::new();
+    let mut mcp: Vec<crate::model::McpResource> = Vec::new();
+    let mut providers: Vec<crate::model::ProviderResource> = Vec::new();
+    let mut skills: Vec<crate::profile::ProfileSkill> = Vec::new();
+
+    for item in &detail.items {
+        match item.resource_type.as_str() {
+            "mcp" => match all_mcp.iter().find(|r| r.name == item.resource_ref) {
+                Some(found) => mcp.push(found.clone()),
+                None => warnings.push(format!("MCP 资源「{}」已不存在，已跳过", item.resource_ref)),
+            },
+            "provider" => match all_providers.iter().find(|p| p.name == item.resource_ref) {
+                Some(found) => providers.push(found.clone()),
+                None => warnings.push(format!("供应商「{}」已不存在，已跳过", item.resource_ref)),
+            },
+            "skill" => {
+                let path = std::path::PathBuf::from(&item.resource_ref);
+                if !path.is_dir() {
+                    warnings.push(format!("Skill 路径不存在，已跳过：{}", item.resource_ref));
+                    continue;
+                }
+                skills.push(crate::profile::ProfileSkill {
+                    path: item.resource_ref.clone(),
+                    name: item.display.clone(),
+                });
+            }
+            other => warnings.push(format!("未知的资源类型：{}", other)),
+        }
+    }
+
+    Ok((loaded, snapshot, mcp, providers, skills, warnings))
+}
+
+#[tauri::command]
+pub fn profile_apply_plan(
+    state: State<'_, AppState>,
+    profile_id: i64,
+    agent_ids: Vec<String>,
+    overwrite_unmanaged: Option<bool>,
+) -> Result<crate::model::SyncPlan, String> {
+    let (loaded, snapshot, mcp, providers, skills, warnings) =
+        resolve_profile_resources(&state, profile_id)?;
+    let vault = state.vault.clone();
+    let resolve = move |key_ref: &str| vault.get(key_ref);
+    let mut plan = crate::profile::plan_profile_apply(&crate::profile::ProfileApplyRequest {
+        defs: &loaded.defs,
+        agents: &snapshot.agents,
+        mcp_resources: &mcp,
+        providers: &providers,
+        skills: &skills,
+        resolve_key: &resolve,
+        agent_ids: &agent_ids,
+        overwrite_unmanaged: overwrite_unmanaged.unwrap_or(false),
+        store: state.store.as_ref(),
+    })?;
+    plan.warnings.extend(warnings);
+    Ok(plan)
+}
+
+#[tauri::command]
+pub fn profile_apply_run(
+    state: State<'_, AppState>,
+    profile_id: i64,
+    agent_ids: Vec<String>,
+    overwrite_unmanaged: Option<bool>,
+) -> crate::actions::ActionResult {
+    match resolve_profile_resources(&state, profile_id) {
+        Ok((loaded, snapshot, mcp, providers, skills, warnings)) => {
+            let vault = state.vault.clone();
+            let resolve = move |key_ref: &str| vault.get(key_ref);
+            let mut result =
+                crate::profile::apply_profile_apply(&crate::profile::ProfileApplyRequest {
+                    defs: &loaded.defs,
+                    agents: &snapshot.agents,
+                    mcp_resources: &mcp,
+                    providers: &providers,
+                    skills: &skills,
+                    resolve_key: &resolve,
+                    agent_ids: &agent_ids,
+                    overwrite_unmanaged: overwrite_unmanaged.unwrap_or(false),
+                    store: state.store.as_ref(),
+                });
+            result.warnings.extend(warnings);
+            result
+        }
+        Err(e) => crate::actions::ActionResult {
+            ok: false,
+            title: "应用环境档案".into(),
+            summary: e.clone(),
+            steps: vec![crate::actions::StepResult {
+                target: "(plan)".into(),
+                ok: false,
+                message: e,
+            }],
+            manifest: None,
+            restore_hint: String::new(),
+            warnings: Vec::new(),
+        },
+    }
+}
+
 /* --------------------------------------------------------------- 前端启动 */
 
 #[tauri::command]

@@ -58,7 +58,7 @@ export function Sidebar() {
     {
       title: "环境与同步",
       items: [
-        { route: "profiles", label: "Profiles", icon: "profiles", tag: "M1" },
+        { route: "profiles", label: "环境档案", icon: "profiles" },
         { route: "agents", label: "Agent 目标", icon: "agents", badge: installedAgents },
         { route: "adapter", label: "Agent 定义与能力", icon: "adapter" },
       ],

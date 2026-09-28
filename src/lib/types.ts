@@ -262,6 +262,8 @@ export interface MergeChange {
 export interface SyncTargetPlan {
   agentId: string;
   agentName: string;
+  /** config（配置文件写入）| skill（Skill 部署） */
+  kind: string;
   file: string;
   root: string;
   format: string;
@@ -321,6 +323,38 @@ export interface VaultStatus {
   count: number;
   healthy: boolean;
   message: string;
+}
+
+/* ------------------------------------------------------------ Profile 档案 */
+
+export interface ProfileCounts {
+  mcp: number;
+  provider: number;
+  skill: number;
+}
+
+export interface ProfileResource {
+  id: number;
+  name: string;
+  description: string;
+  /** 绑定的 Agent id */
+  agents: string[];
+  counts: ProfileCounts;
+  updatedAt: string;
+}
+
+export interface ProfileItem {
+  id: number;
+  /** mcp | provider | skill */
+  resourceType: string;
+  /** MCP/供应商用名称；Skill 用路径 */
+  resourceRef: string;
+  display: string;
+}
+
+export interface ProfileDetail {
+  profile: ProfileResource;
+  items: ProfileItem[];
 }
 
 export interface SkillEnv {

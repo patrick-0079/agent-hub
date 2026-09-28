@@ -365,7 +365,55 @@ pub struct ProviderEntry {
 }
 
 /// 一次键级变更
+/* ---------------------------------------------------------- Profile 档案 */
+
+/// 档案里的资源构成
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileCounts {
+    pub mcp: usize,
+    pub provider: usize,
+    pub skill: usize,
+}
+
+/// 环境档案：把「哪套 MCP + 哪个供应商 + 哪些 Skill」打包
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileResource {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+    /// 绑定的 Agent id
+    pub agents: Vec<String>,
+    pub counts: ProfileCounts,
+    pub updated_at: String,
+}
+
+/// 档案中的一项资源
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileItem {
+    pub id: i64,
+    /// mcp | provider | skill
+    pub resource_type: String,
+    /// MCP/供应商 用名称；Skill 用其路径
+    pub resource_ref: String,
+    /// 展示名（Skill 用目录名，便于界面显示）
+    pub display: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileDetail {
+    pub profile: ProfileResource,
+    pub items: Vec<ProfileItem>,
+}
+
 /* ------------------------------------------------------ 配置合并与同步 */
+
+fn default_target_kind() -> String {
+    "config".to_string()
+}
 
 /// 一次键级变更
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -383,6 +431,9 @@ pub struct MergeChange {
 pub struct SyncTargetPlan {
     pub agent_id: String,
     pub agent_name: String,
+    /// config（配置文件写入）| skill（Skill 部署）
+    #[serde(default = "default_target_kind")]
+    pub kind: String,
     pub file: String,
     pub root: String,
     pub format: String,

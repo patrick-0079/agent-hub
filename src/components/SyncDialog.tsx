@@ -19,14 +19,17 @@ export function SyncDialog({
   open,
   onClose,
   kind = "mcp",
+  profileId,
   resourceItems,
   onDone,
   onReveal,
 }: {
   open: boolean;
   onClose: () => void;
-  /** 分发哪一类资源：MCP 服务器 / 模型供应商 */
-  kind?: "mcp" | "provider";
+  /** 分发哪一类资源：MCP 服务器 / 模型供应商 / 环境档案 */
+  kind?: "mcp" | "provider" | "profile";
+  /** kind = "profile" 时必填 */
+  profileId?: number;
   resourceItems: { name: string; tag: string; enabled: boolean }[];
   onDone: () => void;
   onReveal: (path: string) => void;
@@ -82,8 +85,18 @@ export function SyncDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, candidates.length]);
 
-  const planCall = kind === "provider" ? api.providerSyncPlan : api.mcpSyncPlan;
-  const applyCall = kind === "provider" ? api.providerSyncApply : api.mcpSyncApply;
+  const planCall = (agentIds: string[], overwrite: boolean) =>
+    kind === "profile"
+      ? api.profileApplyPlan(profileId as number, agentIds, overwrite)
+      : kind === "provider"
+        ? api.providerSyncPlan(agentIds, overwrite)
+        : api.mcpSyncPlan(agentIds, overwrite);
+  const applyCall = (agentIds: string[], overwrite: boolean) =>
+    kind === "profile"
+      ? api.profileApplyRun(profileId as number, agentIds, overwrite)
+      : kind === "provider"
+        ? api.providerSyncApply(agentIds, overwrite)
+        : api.mcpSyncApply(agentIds, overwrite);
 
   const makePlan = async () => {
     setBusy(true);
@@ -117,13 +130,13 @@ export function SyncDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title={result ? "分发结果" : plan ? "确认写入（写入前请先看 diff）" : "分发 MCP 到 Agent"}
+      title={result ? "应用结果" : plan ? "确认写入（写入前请先看 diff）" : kind === "profile" ? "应用环境档案" : kind === "provider" ? "分发供应商到 Agent" : "分发 MCP 到 Agent"}
       subtitle={
         result
           ? result.summary
           : plan
             ? plan.summary
-            : `${resourceItems.filter((r) => r.enabled).length} 个启用中的{kind === "provider" ? "供应商" : "MCP 资源"}`
+            : `${resourceItems.filter((r) => r.enabled).length} 个资源（{kind === "profile" ? "档案内容" : kind === "provider" ? "供应商" : "MCP"}）`
       }
       width="max-w-4xl"
       footer={
@@ -243,7 +256,7 @@ export function SyncDialog({
               ))}
               {resourceItems.filter((r) => r.enabled).length === 0 && (
                 <span className="text-xs text-amber-300">
-                  没有启用中的资源 —— 请先在列表里启用或新增资源
+                  该档案里没有可分发的资源
                 </span>
               )}
             </div>
@@ -357,6 +370,50 @@ function TargetDetail({ target }: { target: SyncPlan["targets"][number] }) {
       {!target.supported ? (
         <div className="rounded-lg border border-rose-500/25 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-200">
           {target.reason}
+        </div>
+      ) : target.kind === "skill" ? (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-800 bg-ink-900/40 px-3 py-2 text-[11px]">
+            <Badge tone="violet" icon="skills">
+              {target.strategy === "skill-copy" ? "拷贝部署" : "链接部署"}
+            </Badge>
+            <span className="text-slate-400">
+              新增 <span className="text-brand-400">{target.added}</span> · 已一致{" "}
+              <span className="text-slate-500">{target.unchanged}</span>
+              {target.skipped > 0 && (
+                <>
+                  {" "}
+                  · 跳过 <span className="text-slate-400">{target.skipped}</span>
+                </>
+              )}
+            </span>
+            {target.reason && <span className="text-slate-500">{target.reason}</span>}
+          </div>
+          <div className="max-h-[420px] space-y-1 overflow-auto rounded-lg border border-ink-800 bg-ink-950/40 p-2">
+            {target.changes.map((change, index) => (
+              <div key={`${change.key}-${index}`} className="flex items-start gap-2 px-2 py-1.5">
+                <span
+                  className={`mt-0.5 w-12 shrink-0 rounded px-1 text-center font-mono text-[10px] ${
+                    change.kind === "add"
+                      ? "bg-brand-500/15 text-brand-300"
+                      : change.kind === "skipped"
+                        ? "bg-slate-500/15 text-slate-400"
+                        : "bg-ink-800 text-slate-500"
+                  }`}
+                >
+                  {change.kind === "add" ? "部署" : change.kind === "skipped" ? "跳过" : "未变"}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="mono block truncate text-[11.5px] text-slate-200">
+                    {change.key}
+                  </span>
+                  <span className="block break-all text-[10.5px] text-slate-500">
+                    {change.detail}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <>

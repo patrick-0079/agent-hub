@@ -17,6 +17,9 @@ import type {
   HostInfo,
   ManifestInfo,
   McpResource,
+  ProfileDetail,
+  ProfileItem,
+  ProfileResource,
   Progress,
   ProviderResource,
   ScanSnapshot,
@@ -107,6 +110,17 @@ export const api = {
   mcpSyncApply: (agentIds: string[], overwriteUnmanaged = false) =>
     call<ActionResult>("mcp_sync_apply", { agentIds, overwriteUnmanaged }),
   backupsList: (limit = 50) => call<BackupInfo[]>("backups_list", { limit }),
+
+  // Profile 环境档案
+  profileList: () => call<ProfileResource[]>("profile_list"),
+  profileDetail: (id: number) => call<ProfileDetail | null>("profile_detail", { id }),
+  profileSave: (profile: ProfileResource, items: ProfileItem[]) =>
+    call<ProfileResource[]>("profile_save", { profile, items }),
+  profileDelete: (id: number) => call<ProfileResource[]>("profile_delete", { id }),
+  profileApplyPlan: (profileId: number, agentIds: string[], overwriteUnmanaged = false) =>
+    call<SyncPlan>("profile_apply_plan", { profileId, agentIds, overwriteUnmanaged }),
+  profileApplyRun: (profileId: number, agentIds: string[], overwriteUnmanaged = false) =>
+    call<ActionResult>("profile_apply_run", { profileId, agentIds, overwriteUnmanaged }),
   backupRestore: (id: number) => call<ActionResult>("backup_restore", { id }),
 
   // 供应商资源库与保险库（T2 + DPAPI）

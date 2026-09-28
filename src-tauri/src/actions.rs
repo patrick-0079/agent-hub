@@ -690,6 +690,20 @@ fn move_to_trash(
     ))
 }
 
+/// 供其它模块复用的目录复制（Profile 部署 Skill 时会用到）
+pub fn copy_skill_dir(from: &Path, to: &Path) -> Result<(usize, u64), String> {
+    copy_dir(from, to)
+}
+
+/// 供其它模块复用：写一份可恢复清单
+pub fn write_manifest_public(
+    op: &str,
+    summary: &str,
+    entries: Vec<ManifestEntry>,
+) -> Option<String> {
+    write_manifest(op, summary, entries)
+}
+
 /* -------------------------------------------------------------- 导入 Skill */
 
 fn tier_of(capability: &str) -> (&'static str, &'static str) {

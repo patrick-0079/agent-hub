@@ -6,6 +6,7 @@ pub mod agentdef;
 pub mod capability;
 pub mod merge;
 pub mod model;
+pub mod profile;
 pub mod scan;
 pub mod store;
 pub mod sync;
@@ -1213,6 +1214,188 @@ pub fn cli_self_test() {
         let _ = std::fs::remove_file(&legacy);
     }
 
+    println!("[18] 环境档案应用：Skill 部署（链接方式）");
+    {
+        use crate::agentdef::{AgentFile, AgentMeta, CapabilityPolicy, LoadedDef, PathRule};
+        use crate::model::{AgentTarget, ProfileCounts, ProfileItem, ProfileResource};
+        use crate::profile::{ProfileApplyRequest, ProfileSkill};
+
+        let dir = base.join("profile");
+        let source_root = dir.join("library");
+        let agent_skills = dir.join("agent-skills");
+        std::fs::create_dir_all(&source_root).unwrap();
+
+        // 技能库里两个真实 Skill
+        let mut skills: Vec<ProfileSkill> = Vec::new();
+        for name in ["alpha", "beta"] {
+            let p = source_root.join(name);
+            std::fs::create_dir_all(&p).unwrap();
+            std::fs::write(
+                p.join("SKILL.md"),
+                format!("---\nname: {}\ndescription: 档案测试\n---\n", name),
+            )
+            .unwrap();
+            skills.push(ProfileSkill {
+                path: p.to_string_lossy().to_string(),
+                name: name.to_string(),
+            });
+        }
+
+        let def = LoadedDef {
+            file: AgentFile {
+                agent: AgentMeta {
+                    id: "sandbox-profile".into(),
+                    name: "沙箱档案目标".into(),
+                    kind: "cli".into(),
+                    ..Default::default()
+                },
+                paths: vec![PathRule {
+                    label: "Skills 目录".into(),
+                    path: agent_skills.to_string_lossy().to_string(),
+                    role: "skills".into(),
+                    format: String::new(),
+                    deploy: "link".into(),
+                }],
+                capabilities: CapabilityPolicy {
+                    max_tier: "deploy".into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            source: "沙箱".into(),
+            from_user_dir: false,
+            used_capabilities: vec![],
+        };
+        let agents = vec![AgentTarget {
+            id: "sandbox-profile".into(),
+            name: "沙箱档案目标".into(),
+            status: "installed".into(),
+            installed: true,
+            ..Default::default()
+        }];
+
+        // 档案数据结构本身也要能落库
+        let store = crate::store::Store::open(&default_data_dir().join("selftest-profile.db")).unwrap();
+        let profile = ProfileResource {
+            id: 0,
+            name: "沙箱档案".into(),
+            description: "自检用".into(),
+            agents: vec!["sandbox-profile".into()],
+            counts: ProfileCounts::default(),
+            updated_at: String::new(),
+        };
+        let items = vec![
+            ProfileItem {
+                id: 0,
+                resource_type: "skill".into(),
+                resource_ref: skills[0].path.clone(),
+                display: "alpha".into(),
+            },
+            ProfileItem {
+                id: 0,
+                resource_type: "skill".into(),
+                resource_ref: skills[1].path.clone(),
+                display: "beta".into(),
+            },
+        ];
+        match store.profile_save(&profile, &items) {
+            Ok(id) => {
+                let list = store.profile_list();
+                let detail = store.profile_detail(id);
+                check!(
+                    list.len() == 1
+                        && list[0].counts.skill == 2
+                        && list[0].agents == vec!["sandbox-profile".to_string()]
+                        && detail.map(|d| d.items.len()).unwrap_or(0) == 2,
+                    "档案落库：{} 个档案 / {} 个 Skill 项 / 绑定 {} 个 Agent",
+                    list.len(),
+                    list[0].counts.skill,
+                    list[0].agents.len()
+                );
+            }
+            Err(e) => {
+                fail += 1;
+                println!("  ❌ 档案保存失败: {}", e);
+            }
+        }
+
+        let no_agents: Vec<String> = vec![];
+        let resolve = |_: &str| None;
+        let request = |skills: &'static [ProfileSkill]| ProfileApplyRequest {
+            defs: std::slice::from_ref(&def),
+            agents: &agents,
+            mcp_resources: &[],
+            providers: &[],
+            skills,
+            resolve_key: &resolve,
+            agent_ids: &no_agents,
+            overwrite_unmanaged: false,
+            store: &store,
+        };
+
+        // 计划
+        let leaked: &'static [ProfileSkill] = Box::leak(skills.clone().into_boxed_slice());
+        match crate::profile::plan_profile_apply(&request(leaked)) {
+            Ok(plan) => check!(
+                plan.targets.len() == 1
+                    && plan.targets[0].kind == "skill"
+                    && plan.targets[0].added == 2,
+                "计划：{} 个目标（类型 {}），新增 {} 项 Skill",
+                plan.targets.len(),
+                plan.targets[0].kind,
+                plan.targets[0].added
+            ),
+            Err(e) => {
+                fail += 1;
+                println!("  ❌ 生成计划失败: {}", e);
+            }
+        }
+
+        // 执行
+        let applied = crate::profile::apply_profile_apply(&request(leaked));
+        check!(applied.ok, "应用完成: {}", applied.summary);
+        check!(
+            agent_skills.join("alpha").join("SKILL.md").is_file()
+                && agent_skills.join("beta").join("SKILL.md").is_file(),
+            "两个 Skill 已通过链接部署并可读"
+        );
+        check!(
+            crate::actions::is_link(&agent_skills.join("alpha")),
+            "部署方式是链接（junction），不占额外空间"
+        );
+        check!(
+            applied.manifest.is_some(),
+            "已记录可撤销清单"
+        );
+
+        // 幂等
+        let again = crate::profile::plan_profile_apply(&request(leaked)).unwrap();
+        check!(
+            again.targets[0].unchanged == 2 && again.targets[0].added == 0,
+            "幂等：重复应用识别为 {} 项未变、0 项新增",
+            again.targets[0].unchanged
+        );
+
+        // 已存在真实目录时跳过
+        let manual = agent_skills.join("manual-skill");
+        std::fs::create_dir_all(&manual).unwrap();
+        std::fs::write(manual.join("SKILL.md"), "---\nname: manual-skill\n---\n").unwrap();
+        let manual_skill: &'static [ProfileSkill] = Box::leak(
+            vec![ProfileSkill {
+                path: manual.to_string_lossy().to_string(),
+                name: "manual-skill".to_string(),
+            }]
+            .into_boxed_slice(),
+        );
+        let plan3 = crate::profile::plan_profile_apply(&request(manual_skill)).unwrap();
+        check!(
+            plan3.targets[0].skipped == 1 && plan3.targets[0].added == 0,
+            "目标已有真实目录时默认跳过（skipped={}）",
+            plan3.targets[0].skipped
+        );
+        let _ = std::fs::remove_file(default_data_dir().join("selftest-profile.db"));
+    }
+
     println!("\n=== 结果：{} 项通过，{} 项失败 ===", pass, fail);
     println!("沙箱残留（可手动删除）: {}", base.display());
     if fail > 0 {
@@ -1327,6 +1510,12 @@ pub fn run() {
             commands::vault_status,
             commands::provider_sync_plan,
             commands::provider_sync_apply,
+            commands::profile_list,
+            commands::profile_detail,
+            commands::profile_save,
+            commands::profile_delete,
+            commands::profile_apply_plan,
+            commands::profile_apply_run,
             commands::manifests_list,
             commands::manifest_restore,
         ])
