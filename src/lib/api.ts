@@ -19,6 +19,7 @@ import type {
   ManifestInfo,
   McpHandshakeResult,
   McpResource,
+  NpmInstallPlan,
   ProfileDetail,
   ProfileExportMeta,
   ProfileExportOutcome,
@@ -155,6 +156,14 @@ export const api = {
     call<ActionResult>("python_env_create_run", { path, python }),
   pythonEnvManaged: () => call<PythonEnv[]>("python_env_managed"),
   pythonEnvRemove: (path: string) => call<ActionResult>("python_env_remove", { path }),
+  npmInstallPlan: (manager: string, packages: string[]) =>
+    call<NpmInstallPlan>("npm_install_plan", { manager, packages }),
+  npmInstallRun: (manager: string, packages: string[]) =>
+    call<ActionResult>("npm_install_run", { manager, packages }),
+  npmRemovePlan: (manager: string, pkg: string) =>
+    call<NpmInstallPlan>("npm_remove_plan", { manager, package: pkg }),
+  npmRemoveRun: (manager: string, pkg: string) =>
+    call<ActionResult>("npm_remove_run", { manager, package: pkg }),
   profileExport: (id: number) => call<ProfileExportOutcome>("profile_export", { id }),
   profileExportList: () => call<ProfileExportMeta[]>("profile_export_list"),
   profileImport: (path: string) => call<ProfileDetail>("profile_import", { path }),

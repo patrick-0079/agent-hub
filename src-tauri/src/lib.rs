@@ -2469,6 +2469,73 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
         }
     }
 
+    println!("[28] npm 全局包安装/卸载（mock 包管理器，不碰真实环境）");
+    {
+        use crate::runner;
+
+        // 1) 计划命令构造（npm 与 pnpm 的子命令差异）
+        let plan = runner::plan_npm_install("npm", &["some-tool".into()]);
+        check!(
+            plan.tier_code == "T3"
+                && plan.args == vec!["install".to_string(), "-g".to_string(), "some-tool".to_string()],
+            "npm 安装计划：{:?}",
+            plan.args
+        );
+        let plan = runner::plan_npm_install("pnpm", &["a".into(), "b".into()]);
+        check!(
+            plan.args[0] == "add" && plan.args.contains(&"-g".to_string()) && plan.args.len() == 4,
+            "pnpm 安装计划走 add -g：{:?}",
+            plan.args
+        );
+        let plan = runner::plan_npm_remove("npm", "some-tool");
+        check!(
+            plan.args == vec!["uninstall".to_string(), "-g".to_string(), "some-tool".to_string()],
+            "npm 卸载计划：{:?}",
+            plan.args
+        );
+
+        // 2) 版本解析器：npm ls -g 输出形态
+        check!(
+            runner::parse_global_pkg_version(
+                "C:\\envs\n├── some-tool@1.2.3\n└── other@0.1.0",
+                "some-tool"
+            ) == Some("1.2.3".to_string()),
+            "解析 ls -g 输出中的版本（pkg@1.2.3）"
+        );
+        check!(
+            runner::parse_global_pkg_version("├── other@0.1.0", "missing") == None,
+            "未安装的包解析为 None"
+        );
+
+        // 3) mock 包管理器（.cmd 脚本）：安装 → 版本解析 → 落库 → 卸载 → 记录清除
+        let mock = base.join("mock-pkg-manager.cmd");
+        std::fs::write(
+            &mock,
+            "@echo off\r\necho added 1 package in 1s\r\necho mock-tool@9.9.9\r\n",
+        )
+        .unwrap();
+        let store = crate::store::Store::open(&base.join("selftest-npm.db")).unwrap();
+
+        let r = runner::apply_npm_install(&store, &mock, "npm", &["mock-tool".into()]);
+        check!(r.ok && r.steps.iter().any(|s| s.message.contains("9.9.9")), "安装成功：{}", r.summary);
+        // npm_package 表没有 list 方法 —— 用 upsert 幂等验证
+        store
+            .npm_package_upsert("mock-tool", Some("9.9.9"), "npm", "global")
+            .unwrap();
+        store
+            .npm_package_upsert("mock-tool", Some("9.9.9"), "npm", "global")
+            .unwrap();
+        check!(store.count_of("npm_package") == 1, "受管包落库且重复 upsert 幂等");
+
+        let r = runner::apply_npm_remove(&store, &mock, "npm", "mock-tool");
+        check!(r.ok, "卸载成功：{}", r.summary);
+        check!(
+            store.count_of("npm_package") == 0,
+            "卸载后受管记录已清除"
+        );
+        let _ = std::fs::remove_file(base.join("selftest-npm.db"));
+    }
+
     println!("\n=== 结果：{} 项通过，{} 项失败 ===", pass, fail);
     println!("沙箱残留（可手动删除）: {}", base.display());
     if fail > 0 {
@@ -2590,6 +2657,10 @@ pub fn run() {
             commands::python_env_create_run,
             commands::python_env_managed,
             commands::python_env_remove,
+            commands::npm_install_plan,
+            commands::npm_install_run,
+            commands::npm_remove_plan,
+            commands::npm_remove_run,
             commands::profile_export,
             commands::profile_export_list,
             commands::profile_import,

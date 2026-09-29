@@ -535,6 +535,20 @@ export interface EnvCreatePlan {
   message: string;
 }
 
+/* ------------------------------------------------- npm 包安装/卸载（M3） */
+
+export interface NpmInstallPlan {
+  tier: string;
+  tierCode: string;
+  /** npm | pnpm */
+  manager: string;
+  managerPath: string;
+  found: boolean;
+  args: string[];
+  packages: string[];
+  message: string;
+}
+
 /* ------------------------------------------------- 档案导出/导入（M1） */
 
 export interface ProfileExportMeta {

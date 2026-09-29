@@ -173,8 +173,8 @@ const CATALOG: &[(&str, Tier, &str, &str, bool, &[&str])] = &[
     ("backup.create", Tier::Deploy, "记录可恢复清单", "写入前记录 manifest（操作类型、来源、目标），据此可撤销或恢复", true, &["paths"]),
     ("backup.restore", Tier::Deploy, "依清单恢复", "按 manifest 撤销导入 / 重建被删链接 / 从回收站移回", true, &["paths"]),
     /* ---------------------------------------------------------- T3 变更 */
-    ("pkg.npm.install", Tier::Mutate, "安装 npm 全局包", "执行全局包安装（流式输出到任务控制台）", false, &["args"]),
-    ("pkg.npm.remove", Tier::Mutate, "卸载 npm 全局包", "移除全局包", false, &["args"]),
+    ("pkg.npm.install", Tier::Mutate, "安装 npm 全局包", "通过 npm / pnpm 全局安装（计划确认 → 执行 → 解析版本落库）；流式输出到任务控制台", true, &["args"]),
+    ("pkg.npm.remove", Tier::Mutate, "卸载 npm 全局包", "全局卸载并清除受管记录（走包管理器 uninstall）", true, &["args"]),
     ("py.env.create", Tier::Mutate, "创建 Python 环境", "通过 uv venv 创建虚拟环境（读取 pyvenv.cfg 版本并标记为受管）；conda 创建暂未启用", true, &["args", "paths"]),
     ("py.env.remove", Tier::Mutate, "删除 Python 环境", "受管环境整体移入回收站（可恢复）并清除受管记录", true, &["paths"]),
     ("proc.spawn.probe", Tier::Mutate, "MCP 握手探测", "实际启动 MCP 进程（stdio）或发起 HTTP 请求，完成 initialize 握手并清点工具数；进程结束即恢复原状", true, &["args"]),

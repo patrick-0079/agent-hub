@@ -203,6 +203,258 @@ fn read_pyvenv_version(cfg: &Path) -> Option<String> {
     None
 }
 
+/* ---------------------------------------------------------------- npm 包 */
+
+const NPM_TIMEOUT: Duration = Duration::from_secs(300);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NpmInstallPlan {
+    pub tier: String,
+    pub tier_code: String,
+    /// npm | pnpm
+    pub manager: String,
+    pub manager_path: String,
+    pub found: bool,
+    pub args: Vec<String>,
+    pub packages: Vec<String>,
+    pub message: String,
+}
+
+/// 解析包管理器可执行文件（与工具链扫描同一兜底目录）
+pub fn resolve_package_manager(manager: &str) -> Option<PathBuf> {
+    let extra: Vec<PathBuf> = match manager {
+        "pnpm" => vec![crate::util::expand_buf("%APPDATA%/pnpm")],
+        _ => vec![
+            crate::util::expand_buf("%APPDATA%/npm"),
+            crate::util::expand_buf("%PROGRAMDATA%/npm/npm"),
+        ],
+    };
+    crate::util::resolve_program(manager, &extra)
+}
+
+fn npm_subcommand(manager: &str, action: &str) -> &'static str {
+    match (manager, action) {
+        ("pnpm", "install") => "add",
+        ("pnpm", "remove") => "remove",
+        (_, "install") => "install",
+        _ => "uninstall",
+    }
+}
+
+/// 安装计划（T3 先看将执行的命令）
+pub fn plan_npm_install(manager: &str, packages: &[String]) -> NpmInstallPlan {
+    let exe = resolve_package_manager(manager);
+    let args: Vec<String> = [
+        npm_subcommand(manager, "install").to_string(),
+        "-g".to_string(),
+    ]
+    .into_iter()
+    .chain(packages.iter().cloned())
+    .collect();
+    NpmInstallPlan {
+        tier: "变更".into(),
+        tier_code: "T3".into(),
+        manager: manager.to_string(),
+        manager_path: exe
+            .as_ref()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        found: exe.is_some(),
+        args: args.clone(),
+        packages: packages.to_vec(),
+        message: if exe.is_none() {
+            format!("未找到 {}：请先安装，或到「设置 → 工具链」确认", manager)
+        } else {
+            "将全局安装上面的包（真实执行包管理器，耗时取决于网络）".into()
+        },
+    }
+}
+
+/// 卸载计划（T3）
+pub fn plan_npm_remove(manager: &str, package: &str) -> NpmInstallPlan {
+    let exe = resolve_package_manager(manager);
+    let args = vec![
+        npm_subcommand(manager, "remove").to_string(),
+        "-g".to_string(),
+        package.to_string(),
+    ];
+    NpmInstallPlan {
+        tier: "变更".into(),
+        tier_code: "T3".into(),
+        manager: manager.to_string(),
+        manager_path: exe
+            .as_ref()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        found: exe.is_some(),
+        args,
+        packages: vec![package.to_string()],
+        message: if exe.is_none() {
+            format!("未找到 {}", manager)
+        } else {
+            "将从全局移除该包（包管理器 uninstall，可随时重新安装）".into()
+        },
+    }
+}
+
+/// 从 `ls -g --depth=0` 输出解析某个包的已装版本（形如 `├── pkg@1.2.3`）
+pub fn parse_global_pkg_version(output: &str, name: &str) -> Option<String> {
+    let token = format!("{}@", name);
+    for line in output.lines() {
+        if let Some(pos) = line.find(&token) {
+            let rest = &line[pos + token.len()..];
+            let version: String = rest
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '.' || *c == '-')
+                .collect();
+            if !version.is_empty() {
+                return Some(version);
+            }
+        }
+    }
+    None
+}
+
+/// 执行全局安装：spawn 包管理器 → `ls -g` 解析版本 → 落库 npm_package。
+/// `exe` 由调用方解析（命令层走 PATH 兜底，自检传 mock 脚本）。
+pub fn apply_npm_install(
+    store: &Store,
+    exe: &Path,
+    manager: &str,
+    packages: &[String],
+) -> crate::actions::ActionResult {
+    let mut result = crate::actions::ActionResult {
+        ok: true,
+        title: format!("全局安装（{}）", manager),
+        summary: String::new(),
+        steps: Vec::new(),
+        manifest: None,
+        restore_hint: String::new(),
+        warnings: Vec::new(),
+    };
+    let clean: Vec<String> = packages
+        .iter()
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+        .collect();
+    if clean.is_empty() {
+        result.ok = false;
+        result.steps.push(crate::actions::StepResult {
+            target: "(input)".into(),
+            ok: false,
+            message: "没有有效的包名".into(),
+        });
+        return result;
+    }
+    let mut args: Vec<String> = vec![npm_subcommand(manager, "install").into(), "-g".into()];
+    args.extend(clean.clone());
+    let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let install_out = crate::util::run_capture(exe, &arg_refs, NPM_TIMEOUT);
+    let install_text = match install_out {
+        Ok(t) => t,
+        Err(e) => {
+            result.ok = false;
+            result.steps.push(crate::actions::StepResult {
+                target: format!("{} install", manager),
+                ok: false,
+                message: e,
+            });
+            return result;
+        }
+    };
+
+    // 读回版本
+    let list_out = crate::util::run_capture(
+        exe,
+        &["ls", "-g", "--depth=0"],
+        Duration::from_secs(60),
+    )
+    .unwrap_or_default();
+
+    let mut installed = 0usize;
+    for pkg in &clean {
+        let version = parse_global_pkg_version(&list_out, pkg);
+        match store.npm_package_upsert(pkg, version.as_deref(), manager, "global") {
+            Ok(_) => {
+                installed += 1;
+                result.steps.push(crate::actions::StepResult {
+                    target: pkg.clone(),
+                    ok: true,
+                    message: version
+                        .map(|v| format!("已安装（{}）", v))
+                        .unwrap_or_else(|| "已安装（版本未能解析，重新扫描后可见）".into()),
+                });
+            }
+            Err(e) => {
+                result.warnings.push(format!("{} 记录落库失败：{}", pkg, e));
+            }
+        }
+    }
+    result.summary = format!(
+        "{} 个包已全局安装（{}）；输出：{}",
+        installed,
+        manager,
+        truncate(&install_text, 200)
+    );
+    result.restore_hint = "卸载走包管理器 uninstall，可随时重装".into();
+    result
+}
+
+/// 执行全局卸载并清除受管记录
+pub fn apply_npm_remove(
+    store: &Store,
+    exe: &Path,
+    manager: &str,
+    package: &str,
+) -> crate::actions::ActionResult {
+    let mut result = crate::actions::ActionResult {
+        ok: true,
+        title: format!("全局卸载（{}）", manager),
+        summary: String::new(),
+        steps: Vec::new(),
+        manifest: None,
+        restore_hint: String::new(),
+        warnings: Vec::new(),
+    };
+    let pkg = package.trim();
+    if pkg.is_empty() {
+        result.ok = false;
+        result.steps.push(crate::actions::StepResult {
+            target: "(input)".into(),
+            ok: false,
+            message: "包名为空".into(),
+        });
+        return result;
+    }
+    let output = crate::util::run_capture(
+        exe,
+        &[npm_subcommand(manager, "remove"), "-g", pkg],
+        NPM_TIMEOUT,
+    );
+    match output {
+        Ok(text) => {
+            let _ = store.npm_package_delete(pkg, manager);
+            result.steps.push(crate::actions::StepResult {
+                target: pkg.to_string(),
+                ok: true,
+                message: "已卸载，受管记录已清除".into(),
+            });
+            result.summary = format!("{} 已卸载（{}）；输出：{}", pkg, manager, truncate(&text, 200));
+            result.restore_hint = "需要时重新安装即可".into();
+        }
+        Err(e) => {
+            result.ok = false;
+            result.steps.push(crate::actions::StepResult {
+                target: pkg.to_string(),
+                ok: false,
+                message: e,
+            });
+        }
+    }
+    result
+}
+
 /* ---------------------------------------------------------------- 删除 */
 
 /// 删除受管环境：目录整体移入回收站（可恢复），并清掉受管记录

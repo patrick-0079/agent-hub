@@ -884,6 +884,49 @@ impl Store {
         Ok(())
     }
 
+    /* -------------------------------------------------- 受管 npm 全局包 */
+
+    /// 记录一个受管（由本软件安装）的全局包；已存在则更新版本
+    pub fn npm_package_upsert(
+        &self,
+        name: &str,
+        installed: Option<&str>,
+        manager: &str,
+        scope: &str,
+    ) -> Result<()> {
+        let conn = self.conn()?;
+        let existing: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM npm_package WHERE name = ?1 AND manager = ?2",
+                params![name, manager],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if let Some(id) = existing {
+            conn.execute(
+                "UPDATE npm_package SET installed = ?1, scope = ?2 WHERE id = ?3",
+                params![installed, scope, id],
+            )?;
+        } else {
+            conn.execute(
+                "INSERT INTO npm_package (name, version_spec, installed, scope, manager)
+                 VALUES (?1, '', ?2, ?3, ?4)",
+                params![name, installed, scope, manager],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// 清除受管包记录（卸载后调用）
+    pub fn npm_package_delete(&self, name: &str, manager: &str) -> Result<()> {
+        let conn = self.conn()?;
+        conn.execute(
+            "DELETE FROM npm_package WHERE name = ?1 AND manager = ?2",
+            params![name, manager],
+        )?;
+        Ok(())
+    }
+
     /// 取连接锁。PoisonError 不能直接 `?`（MutexGuard 非 Send），这里显式转换。
     fn conn(&self) -> Result<std::sync::MutexGuard<'_, Connection>> {
         self.conn

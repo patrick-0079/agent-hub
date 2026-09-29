@@ -967,6 +967,53 @@ pub fn python_env_remove(
     crate::runner::apply_env_remove(&state.store, &path)
 }
 
+/* --------------------------------------------- npm 全局包安装/卸载（T3） */
+
+#[tauri::command]
+pub fn npm_install_plan(
+    manager: String,
+    packages: Vec<String>,
+) -> crate::runner::NpmInstallPlan {
+    crate::runner::plan_npm_install(&manager, &packages)
+}
+
+#[tauri::command]
+pub fn npm_install_run(
+    state: State<'_, AppState>,
+    manager: String,
+    packages: Vec<String>,
+) -> Result<crate::actions::ActionResult, String> {
+    let exe = crate::runner::resolve_package_manager(&manager)
+        .ok_or_else(|| format!("未找到 {}（PATH 与兜底目录均未命中）", manager))?;
+    Ok(crate::runner::apply_npm_install(
+        &state.store,
+        &exe,
+        &manager,
+        &packages,
+    ))
+}
+
+#[tauri::command]
+pub fn npm_remove_plan(manager: String, package: String) -> crate::runner::NpmInstallPlan {
+    crate::runner::plan_npm_remove(&manager, &package)
+}
+
+#[tauri::command]
+pub fn npm_remove_run(
+    state: State<'_, AppState>,
+    manager: String,
+    package: String,
+) -> Result<crate::actions::ActionResult, String> {
+    let exe = crate::runner::resolve_package_manager(&manager)
+        .ok_or_else(|| format!("未找到 {}（PATH 与兜底目录均未命中）", manager))?;
+    Ok(crate::runner::apply_npm_remove(
+        &state.store,
+        &exe,
+        &manager,
+        &package,
+    ))
+}
+
 /// 导出档案到数据目录 exports/（自包含 JSON，可拷给他人导入）
 #[tauri::command]
 pub fn profile_export(
