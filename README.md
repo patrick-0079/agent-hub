@@ -114,6 +114,7 @@ entries = [
 |---|---|
 | **资源库 CRUD** | 名称、传输方式（stdio/http/sse）、命令与参数、环境变量键值对、**http/sse 请求头（值支持 `%VAR%` 引用，认证类远端 MCP 的握手需要）**、URL、启用开关、备注 |
 | **从扫描导入** | 把各 Agent 配置里已有的 MCP 条目一键收编为受管资源（含来源标注；http 条目的请求头键名一并提取，值需重新录入） |
+| **内置模板库** | 「从模板添加」一键填充常用 MCP 的启动命令（filesystem、fetch、playwright、context7、sequential-thinking、memory、time、everything，按官方文档预填）——保存后就是普通受管资源，可随意改参数 |
 | **握手健康检查** | 「握手」按钮**真实握手一次**：stdio 型真实 spawn 进程 → 写 JSON-RPC `initialize` → 读响应 → 再问 `tools/list` 清点工具数 → 无论成败都杀进程收割；http 型发 Streamable HTTP initialize（兼容 JSON 与 SSE 帧响应，**携带资源里声明的请求头**）。命令经 PATH+PATHEXT 解析（npx/.cmd 均可），环境变量与请求头里的 `%VAR%`/`$VAR` 引用发送前瞬间展开，静默进程 15 秒判 timeout 而不是挂死；结果（状态/耗时/协议版本/工具数）落库常驻展示，支持批量串行测试 |
 | **分发向导（三屏）** | ① 选目标 Agent（只列出「定义里声明了 MCP 来源」且能力上限高于 observe 的）→ ② **逐文件 diff 预览**（键级变更 + 行级 diff 两种视图，含 +/~/-/跳过 计数）→ ③ 执行结果 |
 | **两种写入策略** | **结构合并**（JSON：只增删受管的键，用户手写的其它内容与条目一律不动）· **托管块**（TOML：标记之间就地替换，标记之外一字不改） |

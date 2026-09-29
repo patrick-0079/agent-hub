@@ -27,6 +27,105 @@ const TRANSPORT_TONE: Record<string, "teal" | "sky" | "violet" | "slate"> = {
   unknown: "slate",
 };
 
+/* ------------------------------------------- 内置 MCP 模板（一键添加） */
+
+interface McpTemplate {
+  id: string;
+  name: string;
+  description: string;
+  command: string;
+  args: string[];
+  runtime: "node" | "uvx";
+  docs: string;
+}
+
+const MCP_TEMPLATES: McpTemplate[] = [
+  {
+    id: "filesystem",
+    name: "filesystem",
+    description: "为本机目录提供读写访问（添加后把参数里的目录改成你要放行的路径）",
+    command: "npx",
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\你的用户名"],
+    runtime: "node",
+    docs: "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+  },
+  {
+    id: "fetch",
+    name: "fetch",
+    description: "抓取网页并转成 Markdown（搜索、爬文档、读在线资料）",
+    command: "uvx",
+    args: ["mcp-server-fetch"],
+    runtime: "uvx",
+    docs: "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+  },
+  {
+    id: "playwright",
+    name: "playwright",
+    description: "用 Playwright 驱动真实浏览器：导航、点击、截图、自动化测试",
+    command: "npx",
+    args: ["-y", "@playwright/mcp"],
+    runtime: "node",
+    docs: "https://github.com/executeautomation/mcp-playwright-server",
+  },
+  {
+    id: "context7",
+    name: "context7",
+    description: "为代码问题提供最新版本的库文档（对抗模型知识过时）",
+    command: "npx",
+    args: ["-y", "@upstash/context7-mcp"],
+    runtime: "node",
+    docs: "https://github.com/upstash/context7",
+  },
+  {
+    id: "sequential-thinking",
+    name: "sequential-thinking",
+    description: "让 Agent 分步骤记录与修正推理过程（复杂任务的思维链）",
+    command: "npx",
+    args: ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+    runtime: "node",
+    docs: "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+  },
+  {
+    id: "memory",
+    name: "memory",
+    description: "基于知识图谱的跨会话记忆（人物/事件/偏好）",
+    command: "npx",
+    args: ["-y", "@modelcontextprotocol/server-memory"],
+    runtime: "node",
+    docs: "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+  },
+  {
+    id: "time",
+    name: "time",
+    description: "获取当前时间与时区转换（LLM 自身没有可靠的时钟）",
+    command: "uvx",
+    args: ["mcp-server-time"],
+    runtime: "uvx",
+    docs: "https://github.com/modelcontextprotocol/servers/tree/main/src/time",
+  },
+  {
+    id: "everything",
+    name: "everything",
+    description: "MCP 官方测试服务器：覆盖全部协议特性，用来验证客户端兼容性",
+    command: "uvx",
+    args: ["mcp-server-everything"],
+    runtime: "uvx",
+    docs: "https://github.com/modelcontextprotocol/servers/tree/main/src/everything",
+  },
+];
+
+/** 模板 → 受管资源草稿 */
+function fromTemplate(tpl: McpTemplate): McpResource {
+  return {
+    ...emptyResource(),
+    name: tpl.name,
+    transport: "stdio",
+    command: tpl.command,
+    args: tpl.args,
+    notes: `来自内置模板（${tpl.docs}）`,
+  };
+}
+
 function emptyResource(): McpResource {
   return {
     id: 0,
@@ -355,6 +454,7 @@ export function McpPage() {
   const [editing, setEditing] = useState<McpResource | null>(null);
   const [syncOpen, setSyncOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
   const [importError, setImportError] = useState<string | null>(null);
   const [importSummary, setImportSummary] = useState<string | null>(null);
@@ -522,6 +622,15 @@ export function McpPage() {
                 >
                   <Icon name="plus" className="h-3.5 w-3.5" />
                   从扫描导入
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  onClick={() => setTemplateOpen(true)}
+                  title="从内置模板一键填充常用 MCP 服务器（filesystem / fetch / playwright / context7…）"
+                >
+                  <Icon name="sparkle" className="h-3.5 w-3.5" />
+                  从模板添加
                 </button>
                 <button
                   type="button"
@@ -862,17 +971,79 @@ export function McpPage() {
           <Card className="border-dashed">
             <div className="flex items-center gap-2">
               <Icon name="sparkle" className="h-4 w-4 text-accent-400" />
-              <span className="text-sm text-slate-200">MCP 应用商店</span>
-              <Badge tone="violet" className="ml-auto">
-                M1
+              <span className="text-sm text-slate-200">MCP 应用商店（内置模板）</span>
+              <Badge tone="teal" className="ml-auto">
+                已实现
               </Badge>
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-              内置常用 MCP 注册表（filesystem、fetch、playwright…），一键添加并自动填好启动命令。
+              「从模板添加」一键填充常用 MCP 的启动命令（filesystem、fetch、playwright、context7、
+              memory、time…），保存后就是普通受管资源，可随意改参数。
             </p>
           </Card>
         </div>
       )}
+
+      {/* 内置模板库（M1「MCP 应用商店」的最小形态） */}
+      <Modal
+        open={templateOpen}
+        onClose={() => setTemplateOpen(false)}
+        title="从模板添加 MCP 服务器"
+        subtitle="常用 MCP 的启动命令已按官方文档填好；点「使用」后可在表单里微调参数（如 filesystem 的目录）"
+        width="max-w-3xl"
+      >
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {MCP_TEMPLATES.map((tpl) => {
+            const exists = resources.some((r) => r.name.toLowerCase() === tpl.name);
+            return (
+              <div
+                key={tpl.id}
+                className="flex flex-col rounded-md border border-ink-800 bg-ink-900 px-3 py-2.5"
+              >
+                <div className="flex items-center gap-2">
+                  <Icon name="mcp" className="h-4 w-4 shrink-0 text-slate-400" />
+                  <span className="truncate font-mono text-sm text-slate-100">{tpl.name}</span>
+                  <Badge tone={tpl.runtime === "uvx" ? "violet" : "teal"} className="ml-auto">
+                    {tpl.runtime === "uvx" ? "uvx" : "npx"}
+                  </Badge>
+                  {exists && <Badge tone="slate">已存在同名</Badge>}
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">{tpl.description}</p>
+                <div className="mono mt-1.5 truncate text-[10.5px] text-slate-500" title={`${tpl.command} ${tpl.args.join(" ")}`}>
+                  {tpl.command} {tpl.args.join(" ")}
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn-primary btn-sm"
+                    onClick={() => {
+                      setEditing(fromTemplate(tpl));
+                      setTemplateOpen(false);
+                      setFormOpen(true);
+                    }}
+                  >
+                    <Icon name="plus" className="h-3.5 w-3.5" />
+                    使用
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost btn-sm"
+                    onClick={() => reveal(tpl.docs)}
+                    title={tpl.docs}
+                  >
+                    <Icon name="external" className="h-3.5 w-3.5" />
+                    文档
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+          模板只是「预先填好的表单」：保存后就是一条普通受管资源，改命令、加环境变量、
+          停用、删除都和手工创建的完全一样。npx 型首次启动会现下载包，握手测试可验证。
+        </p>
+      </Modal>
 
       {/* 资源编辑器 */}
       <ResourceForm
