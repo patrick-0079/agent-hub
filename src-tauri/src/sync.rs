@@ -137,7 +137,10 @@ pub struct SyncRequest<'a> {
 pub fn plan_sync(req: &SyncRequest) -> Result<SyncPlan, String> {
     let enabled: Vec<&McpResource> = req.resources.iter().filter(|r| r.enabled).collect();
     if enabled.is_empty() {
-        return Err("没有启用中的 MCP 资源可分发".to_string());
+        // 空资源 + 没有任何受管键 → 确实无事可做；有受管键 → 这是一次合法的清理重放
+        if !req.store.sync_state_any() {
+            return Err("没有启用中的 MCP 资源可分发".to_string());
+        }
     }
 
     let mut targets: Vec<SyncTargetPlan> = Vec::new();
@@ -557,44 +560,38 @@ fn render_provider_entries(
     for provider in providers.iter().filter(|p| p.enabled) {
         let mut fields: Map<String, Value> = Map::new();
         for entry in &write.entries {
-            let value: Option<Value> = match entry.from.as_str() {
-                "baseUrl" => (!provider.base_url.is_empty()).then(|| json!(provider.base_url)),
-                "name" => Some(json!(provider.name)),
-                "models" => Some(json!(provider.models)),
-                "apiKey" => match resolve_key(&provider.key_ref) {
-                    Some(secret) => {
-                        secrets.push(secret.clone());
-                        Some(json!(secret))
-                    }
-                    None => {
-                        warnings.push(format!(
-                            "{} 的密钥不在保险库中（或无法解密），该字段已跳过",
-                            provider.name
-                        ));
+            // 字面量优先：JSON 字面量（true / 3 / "pkg"）或普通字符串
+            let value: Option<Value> = match &entry.value {
+                Some(literal) => Some(
+                    serde_json::from_str::<Value>(literal).unwrap_or_else(|_| json!(literal)),
+                ),
+                None => match entry.from.as_str() {
+                    "baseUrl" => (!provider.base_url.is_empty()).then(|| json!(provider.base_url)),
+                    "name" => Some(json!(provider.name)),
+                    "models" => Some(json!(provider.models)),
+                    "apiKey" => match resolve_key(&provider.key_ref) {
+                        Some(secret) => {
+                            secrets.push(secret.clone());
+                            Some(json!(secret))
+                        }
+                        None => {
+                            warnings.push(format!(
+                                "{} 的密钥不在保险库中（或无法解密），该字段已跳过",
+                                provider.name
+                            ));
+                            None
+                        }
+                    },
+                    other => {
+                        warnings.push(format!("未知的字段来源 {}，已忽略", other));
                         None
                     }
                 },
-                other => {
-                    warnings.push(format!("未知的字段来源 {}，已忽略", other));
-                    None
-                }
             };
             if let Some(value) = value {
                 if write.object_per_provider {
-                    // 以点号路径写进该 provider 的对象里
-                    let mut wrapper: Map<String, Value> = Map::new();
-                    let segments: Vec<&str> = entry.key.split('.').filter(|s| !s.is_empty()).collect();
-                    let mut cursor = &mut wrapper;
-                    for segment in &segments[..segments.len().saturating_sub(1)] {
-                        cursor = cursor
-                            .entry(segment.to_string())
-                            .or_insert_with(|| Value::Object(Map::new()))
-                            .as_object_mut()
-                            .expect("已确保为对象");
-                    }
-                    if let Some(last) = segments.last() {
-                        cursor.insert(last.to_string(), value);
-                    }
+                    // 点号路径写进该 provider 的对象（merge_into_map 负责逐层下钻）
+                    fields = merge_into_map(fields, &entry.key, value);
                 } else {
                     fields.insert(entry.key.clone(), value);
                 }
@@ -657,7 +654,10 @@ pub fn plan_provider_sync(req: &ProviderSyncRequest) -> Result<SyncPlan, String>
     let enabled: Vec<&crate::model::ProviderResource> =
         req.providers.iter().filter(|p| p.enabled).collect();
     if enabled.is_empty() {
-        return Err("没有启用中的供应商资源可分发".to_string());
+        // 空资源 + 没有任何受管键 → 确实无事可做；有受管键 → 这是一次合法的清理重放
+        if !req.store.sync_state_any() {
+            return Err("没有启用中的供应商资源可分发".to_string());
+        }
     }
 
     let mut targets: Vec<SyncTargetPlan> = Vec::new();

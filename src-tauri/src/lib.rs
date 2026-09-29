@@ -1187,8 +1187,8 @@ pub fn cli_self_test() {
                     strategy: String::new(),
                     object_per_provider: false,
                     entries: vec![
-                        ProviderEntry { key: "ANTHROPIC_BASE_URL".into(), from: "baseUrl".into() },
-                        ProviderEntry { key: "ANTHROPIC_API_KEY".into(), from: "apiKey".into() },
+                        ProviderEntry { key: "ANTHROPIC_BASE_URL".into(), from: "baseUrl".into(), value: None },
+                        ProviderEntry { key: "ANTHROPIC_API_KEY".into(), from: "apiKey".into(), value: None },
                     ],
                 }],
                 capabilities: CapabilityPolicy {
@@ -2599,6 +2599,221 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
             "卸载后受管记录已清除"
         );
         let _ = std::fs::remove_file(base.join("selftest-npm.db"));
+    }
+
+    println!("[29] opencode 供应商分发：对象模式 + 字面量 + 点号路径");
+    {
+        use crate::agentdef::{AgentFile, AgentMeta, CapabilityPolicy, LoadedDef};
+        use crate::model::{AgentTarget, ProviderEntry, ProviderResource, ProviderWrite};
+        use crate::sync::{apply_provider_sync, ProviderSyncRequest};
+
+        let dir = base.join("opencode-prov");
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("opencode.json");
+        std::fs::write(
+            &target,
+            r#"{"$schema": "https://opencode.ai/config.json", "mcp": {"keep-me": {"type": "local", "command": ["node"]}}}"#,
+        )
+        .unwrap();
+
+        let def = LoadedDef {
+            file: AgentFile {
+                agent: AgentMeta {
+                    id: "sandbox-opencode".into(),
+                    name: "沙箱 opencode".into(),
+                    kind: "cli".into(),
+                    ..Default::default()
+                },
+                provider_write: vec![ProviderWrite {
+                    file: target.to_string_lossy().to_string(),
+                    root: "provider".into(),
+                    format: "json".into(),
+                    strategy: String::new(),
+                    object_per_provider: true,
+                    entries: vec![
+                        ProviderEntry {
+                            key: "npm".into(),
+                            from: String::new(),
+                            value: Some("@ai-sdk/openai-compatible".into()),
+                        },
+                        ProviderEntry { key: "name".into(), from: "name".into(), value: None },
+                        ProviderEntry {
+                            key: "options.baseURL".into(),
+                            from: "baseUrl".into(),
+                            value: None,
+                        },
+                        ProviderEntry {
+                            key: "options.apiKey".into(),
+                            from: "apiKey".into(),
+                            value: None,
+                        },
+                        ProviderEntry {
+                            key: "options.modelsDiscovery.enabled".into(),
+                            from: String::new(),
+                            value: Some("true".into()),
+                        },
+                    ],
+                }],
+                capabilities: CapabilityPolicy {
+                    max_tier: "deploy".into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            source: "沙箱".into(),
+            from_user_dir: false,
+            used_capabilities: vec![],
+        };
+        let agents = vec![AgentTarget {
+            id: "sandbox-opencode".into(),
+            name: "沙箱 opencode".into(),
+            status: "installed".into(),
+            installed: true,
+            ..Default::default()
+        }];
+        let store =
+            crate::store::Store::open(&base.join("selftest-opencode-prov.db")).unwrap();
+        let secret = "sk-opencode-sandbox-0123456789";
+        let providers = vec![ProviderResource {
+            id: 0,
+            name: "myprov".into(),
+            kind: "openai-compatible".into(),
+            base_url: "https://example.com/v1".into(),
+            models: vec![],
+            key_ref: "provider:myprov".into(),
+            has_key: true,
+            masked_key: None,
+            enabled: true,
+            notes: String::new(),
+            health: Default::default(),
+            balance: Default::default(),
+        }];
+        let agent_ids = vec!["sandbox-opencode".to_string()];
+        let resolve = |key_ref: &str| {
+            (key_ref == "provider:myprov").then(|| secret.to_string())
+        };
+
+        let result = apply_provider_sync(&ProviderSyncRequest {
+            defs: std::slice::from_ref(&def),
+            agents: &agents,
+            providers: &providers,
+            resolve_key: &resolve,
+            agent_ids: &agent_ids,
+            overwrite_unmanaged: false,
+            store: &store,
+        });
+        check!(result.ok, "分发完成：{}", result.summary);
+
+        let after: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&target).unwrap()).unwrap();
+        check!(
+            after["$schema"].is_string() && after["mcp"]["keep-me"]["command"][0] == "node",
+            "用户手写内容完整保留（$schema / mcp.keep-me）"
+        );
+        check!(
+            after["provider"]["myprov"]["npm"] == "@ai-sdk/openai-compatible"
+                && after["provider"]["myprov"]["name"] == "myprov",
+            "对象模式：npm 字面量与名称正确"
+        );
+        check!(
+            after["provider"]["myprov"]["options"]["baseURL"] == "https://example.com/v1"
+                && after["provider"]["myprov"]["options"]["apiKey"] == secret,
+            "点号路径：options.baseURL / options.apiKey 落位"
+        );
+        check!(
+            after["provider"]["myprov"]["options"]["modelsDiscovery"]["enabled"] == serde_json::json!(true),
+            "字面量类型正确：modelsDiscovery.enabled 是布尔 true（不是字符串）"
+        );
+
+        // 受管键跟踪 + 幂等
+        let state = store.sync_state_get("sandbox-opencode", &target.to_string_lossy(), "provider");
+        check!(
+            state == vec!["myprov".to_string()],
+            "受管键记录为 myprov（下次移除时会清理它）"
+        );
+        let again = apply_provider_sync(&ProviderSyncRequest {
+            defs: std::slice::from_ref(&def),
+            agents: &agents,
+            providers: &providers,
+            resolve_key: &resolve,
+            agent_ids: &agent_ids,
+            overwrite_unmanaged: false,
+            store: &store,
+        });
+        check!(again.ok, "幂等重放成功");
+        let after2: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&target).unwrap()).unwrap();
+        check!(
+            after2 == after,
+            "重放后内容与首次一致（无重复堆叠）"
+        );
+
+        // 移除供应商 → 下次分发清理受管键，手写内容不动
+        let empty: Vec<ProviderResource> = vec![];
+        let cleanup = apply_provider_sync(&ProviderSyncRequest {
+            defs: std::slice::from_ref(&def),
+            agents: &agents,
+            providers: &empty,
+            resolve_key: &resolve,
+            agent_ids: &agent_ids,
+            overwrite_unmanaged: false,
+            store: &store,
+        });
+        check!(cleanup.ok, "清理分发完成：{}", cleanup.summary);
+        let after3: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&target).unwrap()).unwrap();
+        check!(
+            after3["provider"].get("myprov").is_none()
+                && after3["mcp"]["keep-me"].is_object(),
+            "移除后受管条目被清理，用户手写内容原样保留"
+        );
+        let _ = std::fs::remove_file(base.join("selftest-opencode-prov.db"));
+    }
+
+    println!("[30] 内置 Agent 定义全量解析（含 opencode 供应商写入声明）");
+    {
+        let mut parsed = 0usize;
+        let mut bad: Vec<String> = Vec::new();
+        for (id, text) in crate::agentdef::BUILTIN_FILES {
+            match crate::agentdef::parse(text) {
+                Ok(_) => parsed += 1,
+                Err(e) => bad.push(format!("{}：{}", id, e)),
+            }
+        }
+        check!(
+            bad.is_empty(),
+            "{} 个内置定义全部解析通过{}",
+            parsed,
+            if bad.is_empty() { String::new() } else { format!("（失败：{}）", bad.join("；")) }
+        );
+
+        // opencode 的写入声明按预期落地（deny_unknown_fields 下 value 字面量可用）
+        let opencode_text = crate::agentdef::BUILTIN_FILES
+            .iter()
+            .find(|(id, _)| *id == "opencode")
+            .map(|(_, text)| *text)
+            .expect("opencode 定义存在");
+        let oc = crate::agentdef::parse(opencode_text).unwrap();
+        check!(
+            oc.capabilities.max_tier == "deploy" && oc.provider_write.len() == 1,
+            "opencode：maxTier=deploy 且有 1 条 providerWrite"
+        );
+        let w = &oc.provider_write[0];
+        check!(
+            w.object_per_provider && w.entries.len() == 5,
+            "providerWrite：对象模式，{} 条映射（root={}）",
+            w.entries.len(),
+            w.root
+        );
+        check!(
+            w.entries.iter().any(|e| e.key == "npm"
+                && e.value.as_deref() == Some("@ai-sdk/openai-compatible"))
+                && w.entries
+                    .iter()
+                    .any(|e| e.key == "options.modelsDiscovery.enabled"
+                        && e.value.as_deref() == Some("true")),
+            "字面量条目就位（npm 包名 + modelsDiscovery 开关）"
+        );
     }
 
     println!("\n=== 结果：{} 项通过，{} 项失败 ===", pass, fail);

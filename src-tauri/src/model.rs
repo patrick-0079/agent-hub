@@ -421,8 +421,14 @@ pub struct ProviderWrite {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProviderEntry {
     pub key: String,
-    /// baseUrl | apiKey | name | models
+    /// baseUrl | apiKey | name | models（来源字段）
+    #[serde(default)]
     pub from: String,
+    /// 字面量值（优先于 from）：JSON 字面量（"true"/"3"/"\"pkg\""）或普通字符串。
+    /// 用于 opencode 这类要求固定 SDK 包名（npm = "@ai-sdk/openai-compatible"）
+    /// 或固定开关（modelsDiscovery.enabled = true）的目标。
+    #[serde(default)]
+    pub value: Option<String>,
 }
 
 /// 一次键级变更

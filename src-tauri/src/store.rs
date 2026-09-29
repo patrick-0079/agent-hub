@@ -512,6 +512,17 @@ impl Store {
         Ok(())
     }
 
+    /// 是否存在任何受管键记录（空资源分发时的清理重放依赖这一点）
+    pub fn sync_state_any(&self) -> bool {
+        let conn = match self.conn.lock() {
+            Ok(c) => c,
+            Err(_) => return false,
+        };
+        conn.query_row("SELECT COUNT(*) FROM sync_state", [], |row| row.get::<_, i64>(0))
+            .map(|c| c > 0)
+            .unwrap_or(false)
+    }
+
     /* -------------------------------------------------------- Profile 档案 */
 
     fn profile_items(&self, conn: &Connection, profile_id: i64) -> Vec<crate::model::ProfileItem> {
@@ -750,8 +761,7 @@ impl Store {
     }
 
     /// 同步历史留痕
-    pub fn sync_history_add(
-        &self,
+    pub fn sync_history_add(        &self,
         target: &str,
         summary: &str,
         backup_path: Option<&str>,

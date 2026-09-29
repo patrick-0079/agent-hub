@@ -98,23 +98,26 @@ label = "opencode"
 
 # ── 能力分级授权：该 Agent 允许 AgentHub 操作到哪一级 ──────────────────
 [capabilities]
-maxTier = "parse"                       # observe | parse | deploy | mutate
+maxTier = "deploy"                      # observe | parse | deploy | mutate
 skillMethods = ["link", "copy"]         # 允许的 Skill 部署方式（M2 生效）
 configWrite = ["merge-keys"]            # 允许的配置写入方式（M2 生效）
-notes = "M0 只执行 observe/parse；deploy 起需要用户在界面上显式确认"
-# ── Provider 写入声明（待补全）──
-# opencode 的自定义供应商条目需要 `npm`（SDK 包名）与 `models` 结构才能通过其校验，
-# 而这两项随供应商而异，因此这里先不声明写入，避免生成 opencode 无法加载的配置。
-# 需要时可以照下面的形状补上（键名支持点号路径）：
-#
-# [[providerWrite]]
-# file = "~/.config/opencode/opencode.json"
-# root = "provider"
-# format = "json"
-# objectPerProvider = true
-# entries = [
-#   { key = "name", from = "name" },
-#   { key = "options.baseURL", from = "baseUrl" },
-#   { key = "options.apiKey", from = "apiKey" },
-#   { key = "models", from = "models" },
-# ]
+notes = "配置写入在界面走 diff → 确认 → 备份 → 原子写入流程"
+
+# ── Provider 写入声明 ─────────────────────────────────────────────────
+# 形状按本机 opencode 实际可用的自定义供应商条目校准：
+#   provider.<id> = { npm, name, options.{baseURL, apiKey, modelsDiscovery.enabled} }
+# `npm` 与 `modelsDiscovery.enabled` 是固定值（value 字面量），
+# 与 opencode 文档的「AI SDK + modelsDiscovery 自动发现模型」形态一致。
+# 键名取供应商资源名 —— 与手写条目同名时默认跳过（受管保护，见向导）。
+[[providerWrite]]
+file = "~/.config/opencode/opencode.json"
+root = "provider"
+format = "json"
+objectPerProvider = true
+entries = [
+  { key = "npm", value = "@ai-sdk/openai-compatible" },
+  { key = "name", from = "name" },
+  { key = "options.baseURL", from = "baseUrl" },
+  { key = "options.apiKey", from = "apiKey" },
+  { key = "options.modelsDiscovery.enabled", value = "true" },
+]

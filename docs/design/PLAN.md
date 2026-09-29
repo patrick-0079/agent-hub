@@ -222,7 +222,7 @@ M0 已建全部表结构，实际写入 `settings` 与 `scan_snapshot`。
 | **M0** ✅ | 工程骨架（Tauri+Rust+React+SQLite）、**能力分级内核 + 配置驱动的 Agent 定义（21 个）**、Inventory Scanner、仪表盘与拓扑图、Onboarding、设置探测面板、只读资源页、任务控制台、`--scan-json` 自检 |
 | **M1** ✅ | 五类资源 CRUD（MCP 与供应商资源库）；密钥保险库 **DPAPI**；供应商分发（claude-code 目标）；**环境档案 Profile + 一键应用**；**Provider 连通性测试（GET models，延迟/模型数/错误三级结果）**；**余额查询（DeepSeek /user/balance）**；**快照对比（任意两次扫描的资源级差异）**；**档案导出/导入（自包含 JSON，密钥永不落文件）**；**MCP 内置模板库（一键添加常用服务器）** |
 | **M2 · Skill 部分** ✅ | **T2/T3 首批落地**：`skill.copy` / `skill.link` / `skill.relink` / `path.delete` / `git.clone` / `backup.*`；快捷导入（本地目录 + Git 仓库 + 代理）、一键清理失效链接、重建链接、**删除统一入回收站 + 独立回收站管理页（统计/详情/部分恢复/按期清理/永久删除）**、可恢复操作清单、路径别名去重、`--self-test` 沙箱自检与 `--trash-json` |
-| M2（其余） | **配置写入类 T2 已落地 MCP 部分**：`file.merge_keys`（JSON 结构合并）+ `file.write_block`（TOML 托管块）、MCP 资源库 CRUD 与从扫描导入、三屏分发向导（逐文件 diff）、写前备份与回滚、受管键状态跟踪与清理；余下：Provider 分发到更多 Agent（opencode）、diff 三屏推广到其它资源、Agent 配置同步审计时间线 |
+| M2（其余） | **配置写入类 T2 已落地 MCP 部分**：`file.merge_keys`（JSON 结构合并）+ `file.write_block`（TOML 托管块）、MCP 资源库 CRUD 与从扫描导入、三屏分发向导（逐文件 diff）、写前备份与回滚、受管键状态跟踪与清理；余下：~~Provider 分发到更多 Agent（opencode）~~ **✅ 已落地**、diff 三屏推广到其它资源；~~Agent 配置同步审计时间线~~ **✅ 已落地** |
 | M3 | **T3 其余**：~~MCP 握手健康检查~~ **✅ 已落地**（stdio 真实起进程 / http initialize，`mcp_server.health` 常驻展示）；~~uv 环境创建~~ **✅ 已落地**（`py.env.create` / `py.env.remove`：uv venv 计划确认 → 执行 → 受管标记 → 删除入回收站）；余下：conda 创建向导、npm 声明式安装与版本锁定 |
 | M3.5 | 定义模版语法（Tera）+ 可视化编辑器三视图；反向生成向导；定义导入导出分享 |
 | M4 | ~~命令面板~~ **✅ 已落地**（Ctrl+K 全局搜索直达页面与操作）；更多内置 Adapter（Cursor/Cline/Windsurf 同步）；换机迁移导入导出（**档案级已落地**）；CLI 完整化；浅色主题与英文界面 |
