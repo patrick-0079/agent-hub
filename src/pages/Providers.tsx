@@ -17,6 +17,7 @@ import { api, describeError } from "../lib/api";
 import { KIND_LABEL, useReveal } from "../lib/hooks";
 import { useApp } from "../lib/store";
 import type {
+  ProviderBalanceResult,
   ProviderHint,
   ProviderResource,
   ProviderTestResult,
@@ -32,6 +33,7 @@ const KIND_TONE: Record<string, "rose" | "teal" | "violet" | "slate"> = {
 
 const PROVIDER_KINDS = [
   { value: "openai-compatible", label: "OpenAI 兼容" },
+  { value: "deepseek", label: "DeepSeek（支持余额查询）" },
   { value: "anthropic", label: "Anthropic" },
   { value: "openrouter", label: "OpenRouter" },
   { value: "ollama", label: "Ollama（本地）" },
@@ -59,7 +61,25 @@ function emptyProvider(): ProviderResource {
       testedAt: "",
       endpoint: "",
     },
+    balance: {
+      status: "",
+      httpStatus: null,
+      latencyMs: 0,
+      isAvailable: null,
+      currency: "",
+      totalBalance: "",
+      grantedBalance: "",
+      toppedUpBalance: "",
+      message: "",
+      testedAt: "",
+      endpoint: "",
+    },
   };
+}
+
+/** DeepSeek 类型才有余额端点（其它类型后端返回 unsupported，界面不显示入口） */
+function isDeepseek(item: ProviderResource): boolean {
+  return item.kind.toLowerCase().includes("deepseek");
 }
 
 /** 连通性测试结果在卡片里的一行展示 */
@@ -95,14 +115,55 @@ function HealthLine({ health }: { health: ProviderResource["health"] }) {
   );
 }
 
+/** 余额查询结果在卡片里的一行展示 */
+function BalanceLine({ balance }: { balance: ProviderResource["balance"] }) {
+  if (!balance || !balance.status || balance.status === "unsupported") return null;
+  const dot = balance.status === "ok" ? "ok" : balance.status === "no_key" ? "warn" : "error";
+  return (
+    <div
+      className="mt-1 flex items-center gap-2 text-[11px] leading-relaxed"
+      title={`${balance.endpoint || "—"}\n${balance.message}`}
+    >
+      <StatusDot state={dot} />
+      <span
+        className={
+          balance.status === "ok"
+            ? "text-slate-300"
+            : balance.status === "no_key"
+              ? "text-amber-300"
+              : "text-rose-300"
+        }
+      >
+        {balance.status === "ok" && (
+          <>
+            余额 {balance.currency} {balance.totalBalance}
+            {balance.grantedBalance && `（赠送 ${balance.grantedBalance} · 充值 ${balance.toppedUpBalance}）`}
+            {balance.isAvailable === false && " · 账户不可用"}
+            {balance.testedAt && ` · ${balance.testedAt}`}
+          </>
+        )}
+        {balance.status === "no_key" &&
+          `端点可达，但尚未保存 API Key（HTTP ${balance.httpStatus ?? "?"}）`}
+        {balance.status === "error" && balance.message}
+      </span>
+    </div>
+  );
+}
+
 /** 把扫描线索映射成受管供应商（密钥不在线索里，需要重新录入） */
 function toProvider(hint: ProviderHint): ProviderResource {
   const base = emptyProvider();
   const raw = (hint.envVar || hint.label).replace(/[^\w.-]+/g, "-").toLowerCase();
+  const label = hint.label.toLowerCase();
+  const kind = label.includes("deepseek")
+    ? "deepseek"
+    : label.includes("anthropic")
+      ? "anthropic"
+      : "openai-compatible";
   return {
     ...base,
     name: raw || "provider",
-    kind: hint.label.toLowerCase().includes("anthropic") ? "anthropic" : "openai-compatible",
+    kind,
     baseUrl: hint.kind === "base-url" ? hint.valueMasked : "",
     notes: `从 ${hint.source} 导入（密钥需重新录入）`,
   };
@@ -290,6 +351,7 @@ export function ProvidersPage() {
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState("all");
   const [testing, setTesting] = useState<Set<number>>(new Set());
+  const [balanceBusy, setBalanceBusy] = useState<Set<number>>(new Set());
 
   const hints = snapshot?.providerHints ?? [];
 
@@ -349,6 +411,44 @@ export function ProvidersPage() {
   const testAll = async () => {
     for (const item of providers.filter((p) => p.enabled)) {
       await testOne(item);
+    }
+  };
+
+  /** 查询单个供应商的账户余额（当前支持 DeepSeek；结果就地更新并已落库） */
+  const queryBalance = async (item: ProviderResource) => {
+    setBalanceBusy((prev) => new Set(prev).add(item.id));
+    try {
+      const result: ProviderBalanceResult = await api.providerBalanceQuery(item.id);
+      setProviders((prev) =>
+        prev.map((p) =>
+          p.id === item.id
+            ? {
+                ...p,
+                balance: {
+                  status: result.status,
+                  httpStatus: result.httpStatus,
+                  latencyMs: result.latencyMs,
+                  isAvailable: result.isAvailable,
+                  currency: result.currency,
+                  totalBalance: result.totalBalance,
+                  grantedBalance: result.grantedBalance,
+                  toppedUpBalance: result.toppedUpBalance,
+                  message: result.message,
+                  testedAt: result.testedAt,
+                  endpoint: result.endpoint,
+                },
+              }
+            : p,
+        ),
+      );
+    } catch (error) {
+      setBanner(describeError(error));
+    } finally {
+      setBalanceBusy((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
     }
   };
 
@@ -596,6 +696,7 @@ export function ProvidersPage() {
                         </span>
                       )}
                       <HealthLine health={item.health} />
+                      <BalanceLine balance={item.balance} />
                     </span>
                     <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                       <button
@@ -611,6 +712,21 @@ export function ProvidersPage() {
                         />
                         {testing.has(item.id) ? "测试中" : "测试"}
                       </button>
+                      {isDeepseek(item) && (
+                        <button
+                          type="button"
+                          className="btn-ghost btn-sm"
+                          onClick={() => void queryBalance(item)}
+                          disabled={balanceBusy.has(item.id)}
+                          title="查询账户余额（GET /user/balance）：币种、总余额、赠送与充值拆分"
+                        >
+                          <Icon
+                            name="vault"
+                            className={`h-3.5 w-3.5 ${balanceBusy.has(item.id) ? "animate-pulse-soft" : ""}`}
+                          />
+                          {balanceBusy.has(item.id) ? "查询中" : "查余额"}
+                        </button>
+                      )}
                       {item.hasKey && (
                         <button
                           type="button"

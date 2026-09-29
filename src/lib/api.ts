@@ -24,6 +24,7 @@ import type {
   ProfileItem,
   ProfileResource,
   Progress,
+  ProviderBalanceResult,
   ProviderResource,
   ProviderTestResult,
   ScanSnapshot,
@@ -140,6 +141,8 @@ export const api = {
   providerRevealKey: (id: number) => call<string>("provider_reveal_key", { id }),
   vaultStatus: () => call<VaultStatus>("vault_status"),
   providerTest: (id: number) => call<ProviderTestResult>("provider_test", { id }),
+  providerBalanceQuery: (id: number) =>
+    call<ProviderBalanceResult>("provider_balance_query", { id }),
   snapshotDiff: (idA: number, idB: number) =>
     call<SnapshotDiff>("snapshot_diff", { idA, idB }),
   profileExport: (id: number) => call<ProfileExportOutcome>("profile_export", { id }),

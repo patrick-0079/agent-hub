@@ -1139,6 +1139,7 @@ pub fn cli_self_test() {
             enabled: true,
             notes: String::new(),
             health: Default::default(),
+            balance: Default::default(),
         }];
         let no_agents: Vec<String> = vec![];
         let resolve = |key_ref: &str| {
@@ -1270,6 +1271,7 @@ pub fn cli_self_test() {
             enabled: true,
             notes: String::new(),
             health: Default::default(),
+            balance: Default::default(),
         };
         match store.provider_upsert(&provider) {
             Ok(_) => check!(
@@ -1903,8 +1905,15 @@ pub fn cli_self_test() {
             "path.glob 已实现"
         );
         check!(
-            caps.len() == 30,
-            "能力目录共 {} 项（期望 30）",
+            caps.iter()
+                .find(|c| c.id == "net.provider.balance")
+                .map(|c| c.implemented && c.tier_code == "T3")
+                .unwrap_or(false),
+            "net.provider.balance 已登记为 T3 且已实现"
+        );
+        check!(
+            caps.len() == 31,
+            "能力目录共 {} 项（期望 31）",
             caps.len()
         );
     }
@@ -2029,6 +2038,142 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
         );
     }
 
+    println!("[24] 供应商余额查询 net.provider.balance（DeepSeek）");
+    {
+        use crate::probe::query_balance;
+        // 本节内 base 被 mock 地址（String）遮蔽，沙箱根目录单独留一份
+        let sandbox_root = base.clone();
+
+        // 1) 正常响应：余额与拆分、币种、账户可用
+        fn deepseek_router(path: &str) -> (u16, String) {
+            if path == "/user/balance" {
+                (
+                    200,
+                    r#"{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"110.00","granted_balance":"10.00","topped_up_balance":"100.00"}]}"#.into(),
+                )
+            } else {
+                (404, "{}".into())
+            }
+        }
+        let base = spawn_mock_server(deepseek_router, 3);
+        let r = query_balance(&base, "deepseek", Some("sk-balance-ok-1234567890"), "");
+        check!(
+            r.status == "ok"
+                && r.currency == "CNY"
+                && r.total_balance == "110.00"
+                && r.granted_balance == "10.00"
+                && r.topped_up_balance == "100.00"
+                && r.is_available == Some(true),
+            "DeepSeek 余额：{} {}（赠送 {} + 充值 {}）",
+            r.total_balance,
+            r.currency,
+            r.granted_balance,
+            r.topped_up_balance
+        );
+        check!(
+            r.endpoint.ends_with("/user/balance"),
+            "端点落在 /user/balance：{}",
+            r.endpoint
+        );
+
+        // 2) base 带 /v1（OpenAI 兼容习惯）时自动剥掉
+        let base_v1 = spawn_mock_server(deepseek_router, 2);
+        let r = query_balance(
+            &format!("{}/v1", base_v1.trim_end_matches('/')),
+            "deepseek",
+            Some("sk-balance-ok-1234567890"),
+            "",
+        );
+        check!(
+            r.status == "ok" && r.endpoint.ends_with("/user/balance"),
+            "base 带 /v1 时余额端点自动剥掉（实际请求 {}）",
+            r.endpoint
+        );
+
+        // 3) 未保存 Key：401 → no_key
+        fn unauthorized_balance(_path: &str) -> (u16, String) {
+            (401, r#"{"error":"Authentication Fails, Your api key: sk-echo-balance-0123456789"}"#.into())
+        }
+        let base401 = spawn_mock_server(unauthorized_balance, 2);
+        let r = query_balance(&base401, "deepseek", None, "");
+        check!(
+            r.status == "no_key" && r.http_status == Some(401),
+            "端点可达但无 Key → no_key（{}）",
+            r.message
+        );
+
+        // 4) Key 无效：401 → error，且回显的 Key 打码
+        let r = query_balance(
+            &base401,
+            "deepseek",
+            Some("sk-echo-balance-0123456789"),
+            "",
+        );
+        check!(
+            r.status == "error"
+                && r.message.contains("***")
+                && !r.message.contains("sk-echo-balance-0123456789"),
+            "Key 无效 → error，且回显已打码（{}）",
+            r.message
+        );
+
+        // 5) 响应不是余额结构 → error
+        fn garbage(_path: &str) -> (u16, String) {
+            (200, r#"{"unexpected": true}"#.into())
+        }
+        let base_garbage = spawn_mock_server(garbage, 2);
+        let r = query_balance(&base_garbage, "deepseek", Some("sk-any-1234567890"), "");
+        check!(
+            r.status == "error" && r.message.contains("不是可识别的余额结构"),
+            "畸形响应 → error（{}）",
+            r.message
+        );
+
+        // 6) 暂不支持的类型 → unsupported（界面据此隐藏入口）
+        let r = query_balance("https://api.openai.com", "openai-compatible", None, "");
+        check!(
+            r.status == "unsupported" && r.message.contains("DeepSeek"),
+            "未支持的类型 → unsupported（{}）",
+            r.message
+        );
+
+        // 7) 落库往返：provider_set_balance → provider_list 读回
+        let store =
+            crate::store::Store::open(&sandbox_root.join("selftest-balance.db")).unwrap();
+        let provider = crate::model::ProviderResource {
+            id: 0,
+            name: "balance-provider".into(),
+            kind: "deepseek".into(),
+            base_url: base.clone(),
+            models: vec![],
+            key_ref: "provider:balance-provider".into(),
+            has_key: false,
+            masked_key: None,
+            enabled: true,
+            notes: String::new(),
+            health: Default::default(),
+            balance: Default::default(),
+        };
+        store.provider_upsert(&provider).unwrap();
+        let saved = store.provider_list().remove(0);
+        let ok_json = serde_json::to_string(&crate::probe::ProviderBalance {
+            status: "ok".into(),
+            currency: "CNY".into(),
+            total_balance: "42.50".into(),
+            ..Default::default()
+        })
+        .unwrap();
+        store.provider_set_balance(saved.id, &ok_json).unwrap();
+        let read_back = store.provider_list().remove(0);
+        check!(
+            read_back.balance.status == "ok" && read_back.balance.total_balance == "42.50",
+            "余额结果落库 → 读回一致（{} {}）",
+            read_back.balance.total_balance,
+            read_back.balance.currency
+        );
+        let _ = std::fs::remove_file(sandbox_root.join("selftest-balance.db"));
+    }
+
     println!("\n=== 结果：{} 项通过，{} 项失败 ===", pass, fail);
     println!("沙箱残留（可手动删除）: {}", base.display());
     if fail > 0 {
@@ -2143,6 +2288,7 @@ pub fn run() {
             commands::provider_reveal_key,
             commands::vault_status,
             commands::provider_test,
+            commands::provider_balance_query,
             commands::snapshot_diff,
             commands::profile_export,
             commands::profile_export_list,

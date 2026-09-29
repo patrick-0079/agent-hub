@@ -40,7 +40,7 @@ jobs:
         run: cargo build
         working-directory: src-tauri
 
-      - name: Self-test（134 项沙箱断言）
+      - name: Self-test（143 项沙箱断言）
         run: cargo run --quiet -- --self-test
         working-directory: src-tauri
         env:

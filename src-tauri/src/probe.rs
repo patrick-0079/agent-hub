@@ -1,14 +1,15 @@
-//! 供应商连通性探测：T3 能力 `net.provider.probe` 的实现。
+//! 供应商连通性探测与余额查询：T3 能力 `net.provider.probe` / `net.provider.balance` 的实现。
 //!
-//! 只发起一次最小只读请求（GET /models 或等价端点）来验证 Base URL / Key：
+//! 只发起最小只读请求（GET /models、GET /user/balance 等）来验证 Base URL / Key / 余额：
 //! - Key 明文只在内存中存活于这一次请求，不写日志、不落库；
 //! - 响应体若意外回显 Key，进入 message 前先打码；
 //! - 尊重设置里的网络代理。
 //!
 //! 结果分级：
-//! - `ok`      —— 端点可用（可附带模型数量）
-//! - `no_key`  —— 端点可达但需要认证，而本地还没有保存 Key（HTTP 401/403）
-//! - `error`   —— 连接失败 / 超时 / TLS 失败 / Key 无效 / 端点不存在
+//! - `ok`          —— 端点可用（可附带模型数量 / 余额）
+//! - `no_key`      —— 端点可达但需要认证，而本地还没有保存 Key（HTTP 401/403）
+//! - `error`       —— 连接失败 / 超时 / TLS 失败 / Key 无效 / 端点不存在
+//! - `unsupported` ——（仅余额查询）该供应商类型还没有余额端点实现
 
 use serde::{Deserialize, Serialize};
 use std::io::Read;
@@ -321,4 +322,205 @@ fn classify_response(
         sanitize_snippet(body, key)
     );
     base
+}
+
+/* ------------------------------------------------------------- 余额查询 */
+
+/// 一次余额查询的返回（落库到 provider.balance 的就是它的 JSON）
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderBalance {
+    pub provider_id: i64,
+    pub provider_name: String,
+    /// ok | no_key | error | unsupported
+    pub status: String,
+    pub http_status: Option<u16>,
+    /// 账户是否可用（DeepSeek 的 is_available）
+    pub is_available: Option<bool>,
+    /// 币种（如 CNY）
+    pub currency: String,
+    /// 总余额（API 原样字符串，保留精度）
+    pub total_balance: String,
+    /// 赠送余额
+    pub granted_balance: String,
+    /// 充值余额
+    pub topped_up_balance: String,
+    pub message: String,
+    pub tested_at: String,
+    /// 实际请求的端点
+    pub endpoint: String,
+    /// 请求耗时
+    pub latency_ms: u64,
+}
+
+/// DeepSeek /user/balance 响应体（字段为 API 原生 snake_case）
+#[derive(Debug, Deserialize)]
+struct DeepSeekBalanceResponse {
+    #[serde(default)]
+    is_available: Option<bool>,
+    #[serde(default)]
+    balance_infos: Vec<DeepSeekBalanceInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeepSeekBalanceInfo {
+    #[serde(default)]
+    currency: String,
+    #[serde(default)]
+    total_balance: String,
+    #[serde(default)]
+    granted_balance: String,
+    #[serde(default)]
+    topped_up_balance: String,
+}
+
+fn balance_failed(message: impl Into<String>) -> ProviderBalance {
+    ProviderBalance {
+        status: "error".into(),
+        message: message.into(),
+        tested_at: now_human(),
+        ..Default::default()
+    }
+}
+
+/// 查询供应商余额。`api_key` 为 None 或空串表示未保存 Key。
+/// 尚未实现余额端点的类型返回 `unsupported`（界面据此隐藏/禁用入口）。
+pub fn query_balance(
+    base_url: &str,
+    kind: &str,
+    api_key: Option<&str>,
+    proxy: &str,
+) -> ProviderBalance {
+    let kind_l = kind.to_lowercase();
+    if !kind_l.contains("deepseek") {
+        return ProviderBalance {
+            status: "unsupported".into(),
+            message: "该供应商类型暂不支持余额查询（当前支持：DeepSeek）".into(),
+            tested_at: now_human(),
+            ..Default::default()
+        };
+    }
+    if base_url.trim().is_empty() {
+        return balance_failed("缺少 Base URL");
+    }
+
+    // DeepSeek 余额端点在根路径：base 带 /v1 时先剥掉（OpenAI 兼容习惯）
+    let mut base = normalize_base(base_url, &kind_l);
+    if base.ends_with("/v1") {
+        base.truncate(base.len() - 3);
+    }
+    let endpoint = format!("{}/user/balance", base);
+    let key = api_key.map(str::trim).filter(|k| !k.is_empty());
+
+    let agent = match build_agent(proxy) {
+        Ok(a) => a,
+        Err(e) => return balance_failed(e),
+    };
+
+    let mut req = agent.get(&endpoint);
+    if let Some(k) = key {
+        req = req.set("Authorization", &format!("Bearer {}", k));
+    }
+    let start = Instant::now();
+    let response = req.call();
+    let latency_ms = start.elapsed().as_millis() as u64;
+
+    let mut result = match response {
+        Ok(resp) => {
+            let http_status = resp.status();
+            let mut body = String::new();
+            let _ = resp.into_reader().take(64 * 1024).read_to_string(&mut body);
+            classify_balance_response(http_status, &body, key, &endpoint)
+        }
+        Err(ureq::Error::Status(code, resp)) => {
+            let mut body = String::new();
+            let _ = resp
+                .into_reader()
+                .take(64 * 1024)
+                .read_to_string(&mut body);
+            classify_balance_response(code, &body, key, &endpoint)
+        }
+        Err(ureq::Error::Transport(t)) => {
+            let mut r = balance_failed(describe_transport_error(&t));
+            r.endpoint = endpoint;
+            r
+        }
+    };
+    result.latency_ms = latency_ms;
+    result
+}
+
+fn classify_balance_response(
+    http_status: u16,
+    body: &str,
+    key: Option<&str>,
+    endpoint: &str,
+) -> ProviderBalance {
+    let mut result = ProviderBalance {
+        http_status: Some(http_status),
+        endpoint: endpoint.to_string(),
+        tested_at: now_human(),
+        ..Default::default()
+    };
+    if !(200..300).contains(&http_status) {
+        if (http_status == 401 || http_status == 403) && key.is_none() {
+            result.status = "no_key".into();
+            result.message =
+                format!("端点可达，但需要认证（HTTP {}）——尚未保存 API Key", http_status);
+        } else {
+            result.status = "error".into();
+            result.message = format!(
+                "HTTP {} {}",
+                http_status,
+                sanitize_snippet(body, key)
+            );
+        }
+        return result;
+    }
+    match serde_json::from_str::<DeepSeekBalanceResponse>(body) {
+        Ok(parsed) => {
+            // 既没有 is_available 也没有 balance_infos —— 根本不像余额响应
+            if parsed.is_available.is_none() && parsed.balance_infos.is_empty() {
+                result.status = "error".into();
+                result.message = format!(
+                    "响应不是可识别的余额结构：{}",
+                    sanitize_snippet(body, key)
+                );
+                return result;
+            }
+            result.status = "ok".into();
+            result.is_available = parsed.is_available;
+            match parsed.balance_infos.first() {
+                Some(info) => {
+                    result.currency = info.currency.clone();
+                    result.total_balance = info.total_balance.clone();
+                    result.granted_balance = info.granted_balance.clone();
+                    result.topped_up_balance = info.topped_up_balance.clone();
+                    result.message = format!(
+                        "余额 {} {}（赠送 {} + 充值 {}）{}",
+                        info.total_balance,
+                        info.currency,
+                        info.granted_balance,
+                        info.topped_up_balance,
+                        if parsed.is_available == Some(false) {
+                            " · 账户不可用"
+                        } else {
+                            ""
+                        }
+                    );
+                }
+                None => {
+                    result.message = "响应正常，但 balance_infos 为空（账户可能未开通计费）".into();
+                }
+            }
+        }
+        Err(_) => {
+            result.status = "error".into();
+            result.message = format!(
+                "响应不是可识别的余额结构：{}",
+                sanitize_snippet(body, key)
+            );
+        }
+    }
+    result
 }

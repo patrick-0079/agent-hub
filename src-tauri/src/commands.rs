@@ -836,6 +836,46 @@ pub fn provider_test(
     Ok(result)
 }
 
+/// 查询一个供应商的账户余额并把结果落库（provider.balance 列）。
+/// 目前支持 DeepSeek（GET /user/balance）；其它类型返回 unsupported。
+#[tauri::command]
+pub fn provider_balance_query(
+    state: State<'_, AppState>,
+    id: i64,
+) -> Result<crate::probe::ProviderBalance, String> {
+    let target = state
+        .store
+        .provider_list()
+        .into_iter()
+        .find(|p| p.id == id)
+        .ok_or_else(|| "供应商不存在".to_string())?;
+    let key_ref = if target.key_ref.is_empty() {
+        provider_key_ref(&target.name)
+    } else {
+        target.key_ref.clone()
+    };
+    let key = state.vault.get(&key_ref);
+    let proxy = state
+        .settings
+        .lock()
+        .map(|s| s.network_proxy.clone())
+        .unwrap_or_default();
+
+    let mut result = crate::probe::query_balance(
+        &target.base_url,
+        &target.kind,
+        key.as_deref(),
+        &proxy,
+    );
+    result.provider_id = id;
+    result.provider_name = target.name.clone();
+
+    if let Ok(json) = serde_json::to_string(&result) {
+        let _ = state.store.provider_set_balance(id, &json);
+    }
+    Ok(result)
+}
+
 /* --------------------------------------------- 快照对比与档案导出导入 */
 
 /// 测试一个 MCP 服务器的握手健康：真实启动（stdio）或发 HTTP initialize，

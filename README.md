@@ -10,14 +10,14 @@
 
 ### 1. 能力分级（内核原语）
 
-内核**不含任何 Agent 专属逻辑**，只暴露 30 个带分级的基础能力（T0 观察 8 · T1 解析 6 · T2 部署 8 · T3 变更 8），其中 **25 个已实现**：
+内核**不含任何 Agent 专属逻辑**，只暴露 31 个带分级的基础能力（T0 观察 8 · T1 解析 6 · T2 部署 8 · T3 变更 9），其中 **26 个已实现**：
 
 | 级别 | 名称 | 副作用 | 授权方式 | 示例能力 |
 |---|---|---|---|---|
 | **T0** | 观察 Observe | 无 | 扫描时自动执行 | `path.exists`、`path.glob`、`which`、`run.version`、`npm.global.has`、`link.read`、`dir.count` |
 | **T1** | 解析 Parse | 无（只读内容） | 扫描时自动执行 | `file.json.get`、`file.toml.keys`、`file.text.head`、`skill.frontmatter` |
 | **T2** | 部署 Deploy | 写磁盘（可备份回滚） | 用户显式确认 | `skill.copy`、`skill.link`、`skill.relink`、`file.merge_keys`、`file.write_block`、`backup.restore` |
-| **T3** | 变更 Mutate | 调外部程序改系统状态 | 显式确认 + 二次警告 | `pkg.npm.install`、`py.env.create`、`net.provider.probe`、`proc.spawn.probe`、`path.delete`、`git.clone` |
+| **T3** | 变更 Mutate | 调外部程序改系统状态 | 显式确认 + 二次警告 | `pkg.npm.install`、`py.env.create`、`net.provider.probe`、`net.provider.balance`、`proc.spawn.probe`、`path.delete`、`git.clone` |
 
 级别决定「谁能做决定」：T0/T1 无副作用，扫描时自动跑；T2 起是写操作，必须在界面上先看到 diff 并确认。定义文件里每个 Agent 还要声明自己的 `maxTier`（能力上限），越权的操作直接不可用。
 
@@ -26,7 +26,7 @@
 - **T0 观察 8/8** 全部就绪（`path.glob` 支持段内 `*` / `?` 与跨层 `**`，深度与条目上限保护）
 - **T1 解析 6/6** 全部就绪
 - **T2 部署 7/8**：`skill.copy`、`skill.link`、`skill.relink`、`file.merge_keys`、`file.write_block`、`backup.create`、`backup.restore` 已落地（`file.render` 待 M3.5 模板语法）
-- **T3 变更 4/8**：`path.delete`、`git.clone`、`net.provider.probe`（供应商连通性测试）、`proc.spawn.probe`（MCP 握手）已落地（npm 装包 / Python 建环境待 M3）
+- **T3 变更 5/9**：`path.delete`、`git.clone`、`net.provider.probe`（供应商连通性测试）、`net.provider.balance`（余额查询）、`proc.spawn.probe`（MCP 握手）已落地（npm 装包 / Python 建环境待 M3）
 
 ## Skill 操作（T2/T3 首批落地）
 
@@ -81,6 +81,7 @@
 | **密钥保险库** | Windows **DPAPI**（`CryptProtectData`）加密，密文与当前用户绑定 —— 换用户或换机器都无法解密；数据库只存引用名，**落盘文件不含明文**（自检会断言这一点） |
 | **供应商 CRUD** | 名称、类型（OpenAI 兼容 / Anthropic / OpenRouter / Ollama / Azure）、Base URL、模型列表、启用开关、备注 |
 | **连通性测试** | 「测试」/「测试连接」对 Base URL 发一次最小只读请求（GET models）：OpenAI 兼容 404 自动兜底 `/v1/models`、Anthropic 补 `/v1`、Ollama 补协议与 `/api/tags`；结果三级 **ok（延迟+模型数）/ no_key（端点可达但还没录 Key）/ error（原因明确到 DNS、超时、代理、认证）**，落库常驻展示；Key 只在内存存活一次请求，响应体回显先打码 |
+| **余额查询** | DeepSeek 类型供应商卡片上有「查余额」按钮（GET `/user/balance`）：返回**币种、总余额、赠送与充值拆分、账户可用状态**，结果落库常驻展示；base 带 `/v1` 时自动剥掉；未支持的类型返回 `unsupported`（界面不显示入口）。后续按类型扩展其它厂商 |
 | **密钥操作** | 录入（直接加密入保险库）、掩码展示、显式「显示密钥」（需点一下，不写日志）、删除时可选一并清除密钥 |
 | **从线索导入** | 把扫描到的 Base URL 等线索收编为受管资源；**密钥不会被导入**（AgentHub 从不读取明文密钥），需重新录入 |
 | **分发到 Agent** | 复用同一套三屏向导：按定义里声明的 `[[providerWrite]]` 把字段注入目标文件；**变更详情与 diff 全程掩码**（密钥只以 `sk-a••••wxyz （37 字符）` 形式出现），写前自动备份 |
@@ -148,7 +149,7 @@ cargo run -- --trash-json   # 打印回收站统计与条目详情
 cargo run -- --self-test    # 在临时沙箱里跑完整 T2/T3 链路（不碰真实技能库）
 ```
 
-`--self-test` 覆盖：发现 → 导入计划 → 链接导入 → 链接可解析校验 → 重复导入跳过 → 制造失效 → **重建链接** → 再失效 → 清理入回收站 → **从回收站整批还原（指向关系保留）** → 依清单恢复 → 单独删除链接入回收站并还原 → **路径别名去重** → 删除白名单拒绝 → 目录移入回收站并还原 → 越权清理拒绝 → 回收站统计/详情/部分恢复/永久删除/清空 → **配置写入（JSON 结构合并：用户内容保留、受管键清理、幂等、备份、回滚、非受管条目默认跳过、文件不存在时新建）** → **TOML 托管块（就地替换、不重复堆叠）** → **密钥保险库（DPAPI 往返、落盘无明文、掩码、多密钥、删除）** → **供应商分发（密钥注入配置、diff 掩码、用户内容保留、写前备份）** → **环境档案（落库、Skill 链接部署、幂等、跳过已有目录、可撤销清单）** → **供应商连通性测试（本地 mock HTTP 服务器：OpenAI 兜底端点、no_key、Key 回显打码、连接失败、Anthropic/Ollama 端点、空 URL）** → **快照对比（资源级新增/移除/变化、相同快照零差异、落库读回）** → **档案导出导入（原子写入、无密钥字段、同名后缀、非法文件拒绝、导出目录清单）** → **path.glob（** 跨层、段内通配、能力目录登记）** → **MCP 握手（node 模拟 stdio 服务器、%VAR% 环境变量展开、静默进程 timeout、命令缺失、http 握手、端口关闭）**（共 134 项断言）。
+`--self-test` 覆盖：发现 → 导入计划 → 链接导入 → 链接可解析校验 → 重复导入跳过 → 制造失效 → **重建链接** → 再失效 → 清理入回收站 → **从回收站整批还原（指向关系保留）** → 依清单恢复 → 单独删除链接入回收站并还原 → **路径别名去重** → 删除白名单拒绝 → 目录移入回收站并还原 → 越权清理拒绝 → 回收站统计/详情/部分恢复/永久删除/清空 → **配置写入（JSON 结构合并：用户内容保留、受管键清理、幂等、备份、回滚、非受管条目默认跳过、文件不存在时新建）** → **TOML 托管块（就地替换、不重复堆叠）** → **密钥保险库（DPAPI 往返、落盘无明文、掩码、多密钥、删除）** → **供应商分发（密钥注入配置、diff 掩码、用户内容保留、写前备份）** → **环境档案（落库、Skill 链接部署、幂等、跳过已有目录、可撤销清单）** → **供应商连通性测试（本地 mock HTTP 服务器：OpenAI 兜底端点、no_key、Key 回显打码、连接失败、Anthropic/Ollama 端点、空 URL）** → **快照对比（资源级新增/移除/变化、相同快照零差异、落库读回）** → **档案导出导入（原子写入、无密钥字段、同名后缀、非法文件拒绝、导出目录清单）** → **path.glob（** 跨层、段内通配、能力目录登记）** → **MCP 握手（node 模拟 stdio 服务器、%VAR% 环境变量展开、静默进程 timeout、命令缺失、http 握手、端口关闭）** → **供应商余额查询（DeepSeek /user/balance：正常解析与拆分、/v1 剥离、no_key、Key 回显打码、畸形响应、unsupported、落库往返）**（共 143 项断言）。
 
 设置 `AGENTHUB_DATA_DIR` 可切换数据目录（便携模式与沙箱测试都依赖它）。
 
@@ -257,7 +258,7 @@ configWrite = ["merge-keys"]
 - **前端**：React 18 + TypeScript + Vite 6 + Tailwind 3 + Zustand
 - **界面**：全面**扁平化朴素风格** —— 中性灰底、单一青色强调、无渐变无发光无毛玻璃、实底色 + 1px 边框 + 收敛圆角
 - **可视化**：拓扑图为手写 SVG（零依赖）；diff 视图将用 Monaco（M2）；图表将用 Recharts（M5）
-- **CI**：GitHub Actions（windows-latest）：`pnpm build` + `cargo build` + `--self-test` 134 项断言
+- **CI**：GitHub Actions（windows-latest）：`pnpm build` + `cargo build` + `--self-test` 143 项断言
 
 ## 目录结构
 

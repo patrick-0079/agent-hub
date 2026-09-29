@@ -176,6 +176,7 @@ fn migrate(conn: &Connection) {
     let additions: &[(&str, &str, &str)] = &[
         ("provider", "enabled", "enabled INTEGER NOT NULL DEFAULT 1"),
         ("provider", "notes", "notes TEXT NOT NULL DEFAULT ''"),
+        ("provider", "balance", "balance TEXT NOT NULL DEFAULT ''"),
         // M0 建的 mcp_server 表缺这四列，而 mcp_upsert 会写它们 ——
         // 漏补会导致「从扫描导入」静默失败（INSERT 报 no such column）
         ("mcp_server", "enabled", "enabled INTEGER NOT NULL DEFAULT 1"),
@@ -355,7 +356,7 @@ impl Store {
             Err(_) => return Vec::new(),
         };
         let mut stmt = match conn.prepare(
-            "SELECT id, name, kind, base_url, key_ref, models_json, enabled, notes, health
+            "SELECT id, name, kind, base_url, key_ref, models_json, enabled, notes, health, balance
              FROM provider ORDER BY name COLLATE NOCASE",
         ) {
             Ok(s) => s,
@@ -366,6 +367,9 @@ impl Store {
             let health_raw: String = row
                 .get::<_, Option<String>>(8)?
                 .unwrap_or_else(|| "unknown".to_string());
+            let balance_raw: String = row
+                .get::<_, Option<String>>(9)?
+                .unwrap_or_default();
             Ok(crate::model::ProviderResource {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -379,6 +383,7 @@ impl Store {
                 masked_key: None,
                 // 老值 'unknown' 解析失败 → 默认（未测试）
                 health: serde_json::from_str(&health_raw).unwrap_or_default(),
+                balance: serde_json::from_str(&balance_raw).unwrap_or_default(),
             })
         });
         match rows {
@@ -438,6 +443,16 @@ impl Store {
         conn.execute(
             "UPDATE provider SET health = ?1, updated_at = ?2 WHERE id = ?3",
             params![health_json, crate::util::now_human(), id],
+        )?;
+        Ok(())
+    }
+
+    /// 更新供应商余额状态（只由余额查询写入，普通保存不重置）
+    pub fn provider_set_balance(&self, id: i64, balance_json: &str) -> Result<()> {
+        let conn = self.conn()?;
+        conn.execute(
+            "UPDATE provider SET balance = ?1, updated_at = ?2 WHERE id = ?3",
+            params![balance_json, crate::util::now_human(), id],
         )?;
         Ok(())
     }

@@ -340,6 +340,8 @@ export interface ProviderResource {
   notes: string;
   /** 最近一次连通性测试结果（未测试时字段为空/零） */
   health: ProviderHealth;
+  /** 最近一次余额查询结果（未查询时字段为空/零） */
+  balance: ProviderBalanceState;
 }
 
 /** ok | no_key | error；空串 = 未测试 */
@@ -357,6 +359,29 @@ export interface ProviderHealth {
 
 /** 一次连通性测试的返回（含供应商标识） */
 export interface ProviderTestResult extends ProviderHealth {
+  providerId: number;
+  providerName: string;
+}
+
+/** ok | no_key | error | unsupported；空串 = 未查询 */
+export type ProviderBalanceStatus = "ok" | "no_key" | "error" | "unsupported" | "";
+
+export interface ProviderBalanceState {
+  status: ProviderBalanceStatus;
+  httpStatus: number | null;
+  latencyMs: number;
+  isAvailable: boolean | null;
+  currency: string;
+  totalBalance: string;
+  grantedBalance: string;
+  toppedUpBalance: string;
+  message: string;
+  testedAt: string;
+  endpoint: string;
+}
+
+/** 一次余额查询的返回（含供应商标识） */
+export interface ProviderBalanceResult extends ProviderBalanceState {
   providerId: number;
   providerName: string;
 }

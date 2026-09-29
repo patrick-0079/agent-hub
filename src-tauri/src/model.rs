@@ -351,6 +351,9 @@ pub struct ProviderResource {
     /// 最近一次连通性测试的结果（未测试时为默认值）
     #[serde(default)]
     pub health: ProviderHealth,
+    /// 最近一次余额查询的结果（未查询时为默认值）
+    #[serde(default)]
+    pub balance: ProviderBalanceState,
 }
 
 /// 供应商连通性测试结果（存 provider.health 列）
@@ -362,6 +365,24 @@ pub struct ProviderHealth {
     pub http_status: Option<u16>,
     pub latency_ms: u64,
     pub models: Option<usize>,
+    pub message: String,
+    pub tested_at: String,
+    pub endpoint: String,
+}
+
+/// 供应商余额查询结果（存 provider.balance 列）
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderBalanceState {
+    /// ok | no_key | error | unsupported |（空 = 未查询）
+    pub status: String,
+    pub http_status: Option<u16>,
+    pub latency_ms: u64,
+    pub is_available: Option<bool>,
+    pub currency: String,
+    pub total_balance: String,
+    pub granted_balance: String,
+    pub topped_up_balance: String,
     pub message: String,
     pub tested_at: String,
     pub endpoint: String,

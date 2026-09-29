@@ -20,8 +20,8 @@
 ## 2. 管理的五类资源
 
 ### 2.1 模型供应商（Provider）
-- 字段：名称、类型（OpenAI 兼容 / Anthropic / OpenRouter / Ollama / Azure…）、Base URL、API Key（加密存储）、模型列表、默认参数
-- 能力：**连通性测试**（最小请求验证 Key/URL，展示延迟与错误原因）、多 Key 轮换标记、按 Profile 决定哪个 Agent 用哪个 Provider
+- 字段：名称、类型（OpenAI 兼容 / DeepSeek / Anthropic / OpenRouter / Ollama / Azure…）、Base URL、API Key（加密存储）、模型列表、默认参数
+- 能力：**连通性测试**（最小请求验证 Key/URL，展示延迟与错误原因）、**余额查询**（✅ DeepSeek `/user/balance`：币种/总余额/赠送/充值/账户可用；其余类型 `unsupported`，后续按类型扩展）、多 Key 轮换标记、按 Profile 决定哪个 Agent 用哪个 Provider
 
 ### 2.2 Skill
 - 以目录为单位识别 `SKILL.md`（frontmatter：name / description / when_to_use）
