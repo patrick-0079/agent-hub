@@ -594,6 +594,39 @@ export interface MigrationImportSummary {
   skipped: string[];
 }
 
+/* ------------------------------------------------- 反向生成向导（M3.5） */
+
+export interface ConfigNode {
+  key: string;
+  /** object | array | value */
+  kind: string;
+  /** string | number | bool | object | array | null */
+  valueType: string;
+  preview: string;
+  children: ConfigNode[];
+  /** 对象的子项看起来像 MCP 服务器集合 */
+  hasMcpShape: boolean;
+}
+
+export interface DraftRequest {
+  file: string;
+  format: string;
+  agentId: string;
+  agentName: string;
+  kind: string;
+  mcpRoot: string | null;
+  providerRoot: string | null;
+  skillsDir: string | null;
+}
+
+export interface DraftOutcome {
+  content: string;
+  /** 保存用的文件 id（= agent id） */
+  id: string;
+  mcpDeclared: boolean;
+  providerDeclared: boolean;
+}
+
 /* ------------------------------------------------- 档案导出/导入（M1） */
 
 export interface ProfileExportMeta {

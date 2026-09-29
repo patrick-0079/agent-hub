@@ -9,6 +9,7 @@ pub mod merge;
 pub mod model;
 pub mod probe;
 pub mod profile;
+pub mod reverse;
 pub mod runner;
 pub mod scan;
 pub mod share;
@@ -3173,6 +3174,115 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
         let _ = std::fs::remove_file(dst_root.join("m.db"));
     }
 
+    println!("[35] 反向生成向导：配置树解析 → 草稿生成（可解析保证）");
+    {
+        use crate::reverse;
+
+        // 1) JSON 配置树：MCP 形状识别
+        let sample = base.join("reverse-config.json");
+        std::fs::write(
+            &sample,
+            r#"{
+  "$schema": "https://example.com/config.json",
+  "mcpServers": {
+    "filesystem": { "command": "npx", "args": ["-y", "server"] },
+    "fetch": { "command": "uvx", "args": ["mcp-server-fetch"] }
+  },
+  "provider": { "baseURL": "https://api.example.com/v1" },
+  "theme": "dark"
+}"#,
+        )
+        .unwrap();
+        let tree = reverse::parse_config_tree(&sample.to_string_lossy()).unwrap();
+        check!(
+            tree.kind == "object" && tree.children.len() == 4,
+            "根树解析：{} 个顶层键",
+            tree.children.len()
+        );
+        let mcp_node = tree.children.iter().find(|c| c.key == "mcpServers").unwrap();
+        check!(
+            mcp_node.has_mcp_shape && mcp_node.children.len() == 2,
+            "mcpServers 识别为 MCP 形状（{} 个条目）",
+            mcp_node.children.len()
+        );
+        let theme = tree.children.iter().find(|c| c.key == "theme").unwrap();
+        check!(
+            theme.kind == "value" && theme.value_type == "string" && theme.preview == "dark",
+            "值节点带类型与预览（{:?}）",
+            theme.preview
+        );
+
+        // 2) TOML 配置树
+        let toml_sample = base.join("reverse-config.toml");
+        std::fs::write(
+            &toml_sample,
+            "[mcp]\nfilesystem = { command = \"npx\" }\n",
+        )
+        .unwrap();
+        let toml_tree = reverse::parse_config_tree(&toml_sample.to_string_lossy()).unwrap();
+        check!(
+            toml_tree.children.iter().any(|c| c.key == "mcp" && c.has_mcp_shape),
+            "TOML 配置同样可解析出树"
+        );
+
+        // 3) 不支持的格式
+        let err = reverse::parse_config_tree(&base.join("no-such.yaml").to_string_lossy());
+        check!(err.is_err(), "不存在的文件报错");
+        let yaml = base.join("fake.yaml");
+        std::fs::write(&yaml, "a: b").unwrap();
+        let err = reverse::parse_config_tree(&yaml.to_string_lossy()).unwrap_err();
+        check!(err.contains("不支持"), "yaml 报「暂不支持」：{}", err);
+
+        // 4) 草稿生成：mcp + provider + skills → 可解析、块就位
+        let req = reverse::DraftRequest {
+            file: sample.to_string_lossy().to_string(),
+            format: "json".into(),
+            agent_id: "My Agent!".into(), // 非法字符 → slug
+            agent_name: "My Agent".into(),
+            kind: "cli".into(),
+            mcp_root: Some("mcpServers".into()),
+            provider_root: Some("provider".into()),
+            skills_dir: Some("~/.myagent/skills".into()),
+        };
+        let outcome = reverse::generate_definition_draft(&req).unwrap();
+        check!(outcome.id == "my-agent", "agent id 规范化（{}）", outcome.id);
+        let parsed = crate::agentdef::parse(&outcome.content).unwrap();
+        check!(
+            parsed.agent.id == "my-agent"
+                && parsed.paths.iter().any(|p| p.role == "skills")
+                && parsed.mcp.len() == 1
+                && parsed.mcp[0].root == "mcpServers"
+                && parsed.provider.len() == 1,
+            "草稿通过 agentdef::parse：1 条 mcp（root=mcpServers）+ 1 条 provider + skills 路径"
+        );
+
+        // 5) 最小草稿（只填名字）也必须可解析
+        let req = reverse::DraftRequest {
+            file: toml_sample.to_string_lossy().to_string(),
+            format: "toml".into(),
+            agent_name: "最小目标".into(),
+            kind: String::new(),
+            ..Default::default()
+        };
+        let outcome = reverse::generate_definition_draft(&req).unwrap();
+        check!(
+            crate::agentdef::parse(&outcome.content).is_ok(),
+            "最小草稿（无勾选）也可解析"
+        );
+        // TOML 转义：含引号与反斜杠的路径
+        let req = reverse::DraftRequest {
+            file: "C:\\path \"quoted\"\\config.json".into(),
+            agent_name: "escape".into(),
+            mcp_root: Some("a.b".into()),
+            ..Default::default()
+        };
+        let outcome = reverse::generate_definition_draft(&req).unwrap();
+        check!(
+            crate::agentdef::parse(&outcome.content).is_ok(),
+            "含引号/反斜杠的路径正确转义且可解析"
+        );
+    }
+
     println!("\n=== 结果：{} 项通过，{} 项失败 ===", pass, fail);
     println!("沙箱残留（可手动删除）: {}", base.display());
     if fail > 0 {
@@ -3306,6 +3416,8 @@ pub fn run() {
             commands::migration_export,
             commands::migration_list,
             commands::migration_import,
+            commands::config_tree,
+            commands::definition_draft,
             commands::provider_sync_plan,
             commands::provider_sync_apply,
             commands::profile_list,

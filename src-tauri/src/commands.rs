@@ -979,6 +979,22 @@ pub fn template_render(
     crate::template::render_checked(&template, &context_json)
 }
 
+/* --------------------------------------------- 反向生成向导（M3.5） */
+
+/// 解析一个配置文件（json/toml）为树，供向导展示与勾选
+#[tauri::command]
+pub fn config_tree(path: String) -> Result<crate::reverse::ConfigNode, String> {
+    crate::reverse::parse_config_tree(&path)
+}
+
+/// 从勾选结果生成 Agent 定义草稿 TOML（保证可解析）
+#[tauri::command]
+pub fn definition_draft(
+    req: crate::reverse::DraftRequest,
+) -> Result<crate::reverse::DraftOutcome, String> {
+    crate::reverse::generate_definition_draft(&req)
+}
+
 /* --------------------------------------------- npm 全局包安装/卸载（T3） */
 
 #[tauri::command]

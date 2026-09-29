@@ -20,7 +20,9 @@ import { useApp } from "../lib/store";
 import type {
   CapabilitySpec,
   CapabilityTier,
+  ConfigNode,
   DefinitionsView,
+  DraftOutcome,
   LoadedDef,
   PathRule,
   TemplateRenderResult,
@@ -75,7 +77,6 @@ const STRENGTH_META: Record<string, { label: string; tone: Tone }> = {
 };
 
 /* -------------------------------------------------------- 模板试渲染 */
-
 const TEMPLATE_SAMPLE = `# {{ agent.name }} 环境注入
 {% for m in mcps %}MCP: {{ m }}
 {% endfor %}Base URL: {{ provider.base_url | default(value="未配置") }}`;
@@ -85,6 +86,343 @@ const CONTEXT_SAMPLE = `{
   "mcps": ["filesystem", "fetch"],
   "provider": { "base_url": "https://api.example.com/v1" }
 }`;
+
+/* ------------------------------------------------------ 反向生成向导 */
+
+/** 树节点行（可折叠；对象可被选为 MCP / 供应商来源） */
+function TreeNode({
+  node,
+  depth,
+  path,
+  mcpRoot,
+  providerRoot,
+  onPickMcp,
+  onPickProvider,
+}: {
+  node: ConfigNode;
+  depth: number;
+  path: string;
+  mcpRoot: string;
+  providerRoot: string;
+  onPickMcp: (path: string) => void;
+  onPickProvider: (path: string) => void;
+}) {
+  const [open, setOpen] = useState(depth < 1);
+  const hasChildren = node.children.length > 0;
+  const nodePath = path ? `${path}.${node.key}` : node.key;
+  const isMcp = nodePath === mcpRoot;
+  const isProvider = nodePath === providerRoot;
+  const pickable = node.kind === "object";
+
+  return (
+    <div className={depth > 0 ? "ml-3 border-l border-ink-800 pl-2" : ""}>
+      <div className="flex items-center gap-1.5 py-0.5">
+        <button
+          type="button"
+          className={`shrink-0 rounded-sm p-0.5 text-slate-500 hover:bg-ink-800 ${hasChildren ? "" : "invisible"}`}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <Icon
+            name="chevronRight"
+            className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`}
+          />
+        </button>
+        <span className="mono shrink-0 text-[11px] text-slate-200">{node.key}</span>
+        <span className="shrink-0 text-[10px] text-slate-600">
+          {node.kind === "object" ? node.preview : node.valueType}
+        </span>
+        {node.kind !== "object" && node.preview && (
+          <span className="mono min-w-0 flex-1 truncate text-[10px] text-slate-500" title={node.preview}>
+            {node.preview}
+          </span>
+        )}
+        {pickable && (
+          <span className="ml-auto flex shrink-0 items-center gap-1">
+            {node.hasMcpShape && (
+              <button
+                type="button"
+                className={`btn btn-sm border ${isMcp ? "border-sky-500 bg-sky-950 text-sky-300" : "border-sky-500/40 text-sky-300 hover:bg-sky-950"}`}
+                onClick={() => onPickMcp(isMcp ? "" : nodePath)}
+                title="选作 MCP 配置来源（生成 [[mcp]] 声明）"
+              >
+                MCP
+              </button>
+            )}
+            <button
+              type="button"
+              className={`btn btn-sm border ${isProvider ? "border-teal-500 bg-teal-900 text-teal-300" : "border-teal-500/40 text-teal-300 hover:bg-teal-900"}`}
+              onClick={() => onPickProvider(isProvider ? "" : nodePath)}
+              title="选作供应商线索来源（生成 [[provider]] 声明）"
+            >
+              供应
+            </button>
+          </span>
+        )}
+      </div>
+      {open &&
+        node.children.map((child) => (
+          <TreeNode
+            key={child.key}
+            node={child}
+            depth={depth + 1}
+            path={nodePath}
+            mcpRoot={mcpRoot}
+            providerRoot={providerRoot}
+            onPickMcp={onPickMcp}
+            onPickProvider={onPickProvider}
+          />
+        ))}
+    </div>
+  );
+}
+
+function ReverseWizard({
+  open,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const setBanner = useApp((s) => s.setBanner);
+  const [filePath, setFilePath] = useState("");
+  const [tree, setTree] = useState<ConfigNode | null>(null);
+  const [treeError, setTreeError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [agentName, setAgentName] = useState("");
+  const [kind, setKind] = useState("cli");
+  const [skillsDir, setSkillsDir] = useState("");
+  const [mcpRoot, setMcpRoot] = useState("");
+  const [providerRoot, setProviderRoot] = useState("");
+  const [draft, setDraft] = useState<DraftOutcome | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setFilePath("");
+      setTree(null);
+      setTreeError(null);
+      setAgentName("");
+      setKind("cli");
+      setSkillsDir("");
+      setMcpRoot("");
+      setProviderRoot("");
+      setDraft(null);
+    }
+  }, [open]);
+
+  const loadTree = async () => {
+    if (!filePath.trim()) return;
+    setLoading(true);
+    setTreeError(null);
+    setTree(null);
+    setDraft(null);
+    try {
+      const node = await api.configTree(filePath.trim());
+      setTree(node);
+      // 从文件名预填 Agent 名称
+      if (!agentName.trim()) {
+        const guess = filePath.trim().split(/[\\/]/).pop() ?? "";
+        const stem = guess.replace(/\.[^.]+$/, "");
+        setAgentName(stem);
+      }
+    } catch (error) {
+      setTreeError(describeError(error));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generate = async () => {
+    if (!tree || !agentName.trim()) return;
+    setBusy(true);
+    try {
+      const outcome = await api.definitionDraft({
+        file: filePath.trim(),
+        format: "",
+        agentId: "",
+        agentName: agentName.trim(),
+        kind,
+        mcpRoot: mcpRoot || null,
+        providerRoot: providerRoot || null,
+        skillsDir: skillsDir.trim() || null,
+      });
+      setDraft(outcome);
+    } catch (error) {
+      setBanner(describeError(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = async () => {
+    if (!draft) return;
+    setBusy(true);
+    try {
+      await api.saveAgentDefinition(draft.id, draft.content);
+      setBanner(`已保存定义 ${draft.id}.toml 到用户目录，重新扫描后生效`);
+      onSaved();
+      onClose();
+    } catch (error) {
+      setBanner(describeError(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="反向生成 Agent 定义"
+      subtitle="指向一个已有配置文件 → 解析成树 → 勾选 MCP / 供应商节点 → 生成可用的定义草稿"
+      width="max-w-3xl"
+      footer={
+        draft ? (
+          <>
+            <button type="button" className="btn-ghost" onClick={() => setDraft(null)} disabled={busy}>
+              重新调整
+            </button>
+            <button type="button" className="btn-primary" onClick={() => void save()} disabled={busy}>
+              {busy ? "保存中…" : `保存为 ${draft.id}.toml`}
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="btn-ghost" onClick={onClose} disabled={busy}>
+              取消
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => void generate()}
+              disabled={busy || !tree || !agentName.trim()}
+            >
+              {busy ? "生成中…" : "生成草稿"}
+            </button>
+          </>
+        )
+      }
+    >
+      <div className="space-y-3.5">
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <div>
+            <label className="text-xs text-slate-400">配置文件路径（JSON / TOML）</label>
+            <input
+              value={filePath}
+              onChange={(e) => setFilePath(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void loadTree();
+              }}
+              placeholder="C:\Users\你\.myagent\config.json"
+              className="input mt-1.5 font-mono text-xs"
+            />
+          </div>
+          <button
+            type="button"
+            className="btn-ghost mt-6"
+            onClick={() => void loadTree()}
+            disabled={loading || !filePath.trim()}
+          >
+            <Icon name="search" className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            {loading ? "解析中…" : "解析"}
+          </button>
+        </div>
+
+        {treeError && (
+          <div className="rounded-md border border-rose-800/70 bg-rose-950 px-3 py-2 text-xs text-rose-300">
+            {treeError}
+          </div>
+        )}
+
+        {tree && (
+          <>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <label className="text-xs text-slate-400">Agent 名称</label>
+                <input
+                  value={agentName}
+                  onChange={(e) => setAgentName(e.target.value)}
+                  className="input mt-1.5 text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">类型</label>
+                <div className="mt-1.5">
+                  <SegmentedControl
+                    value={kind}
+                    onChange={setKind}
+                    options={[
+                      { value: "cli", label: "CLI" },
+                      { value: "ide", label: "IDE" },
+                      { value: "extension", label: "扩展" },
+                      { value: "host", label: "宿主" },
+                    ]}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">Skills 目录（可选）</label>
+                <input
+                  value={skillsDir}
+                  onChange={(e) => setSkillsDir(e.target.value)}
+                  placeholder="~/.myagent/skills"
+                  className="input mt-1.5 font-mono text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-md border border-ink-800 bg-ink-900 p-2.5">
+              <div className="mb-1.5 flex items-center gap-2 text-[11px] text-slate-500">
+                <Icon name="folder" className="h-3 w-3" />
+                配置树 —— 对象节点上的按钮把它选为声明来源
+                {(mcpRoot || providerRoot) && (
+                  <span className="ml-auto flex items-center gap-1.5">
+                    {mcpRoot && <Badge tone="sky">MCP ← {mcpRoot}</Badge>}
+                    {providerRoot && <Badge tone="teal">供应 ← {providerRoot}</Badge>}
+                  </span>
+                )}
+              </div>
+              <div className="max-h-64 overflow-auto">
+                <TreeNode
+                  node={tree}
+                  depth={0}
+                  path=""
+                  mcpRoot={mcpRoot}
+                  providerRoot={providerRoot}
+                  onPickMcp={setMcpRoot}
+                  onPickProvider={setProviderRoot}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {draft && (
+          <div>
+            <div className="mb-1.5 flex items-center gap-2 text-xs">
+              <StatusDot state="ok" />
+              <span className="text-slate-300">
+                草稿已生成并通过校验
+                {draft.mcpDeclared ? " · 含 [[mcp]]" : ""}
+                {draft.providerDeclared ? " · 含 [[provider]]" : ""}
+              </span>
+            </div>
+            <pre className="max-h-60 overflow-auto rounded-md border border-ink-800 bg-ink-950 p-3 text-[11px] leading-relaxed text-slate-300">
+              {draft.content}
+            </pre>
+          </div>
+        )}
+
+        <p className="text-[11px] leading-relaxed text-slate-500">
+          草稿保存到用户定义目录（与内置同名会覆盖内置）；默认 maxTier=parse（只读侦察），
+          想让 AgentHub 写它的配置时再手工升到 deploy。密钥类节点只做线索来源，值不会落库。
+        </p>
+      </div>
+    </Modal>
+  );
+}
 
 function TemplatePlayground({ open, onClose }: { open: boolean; onClose: () => void }) {
   const setBanner = useApp((s) => s.setBanner);
@@ -187,6 +525,7 @@ export function AgentDefsPage() {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [playgroundOpen, setPlaygroundOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -454,6 +793,15 @@ export function AgentDefsPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              className="btn-primary btn-sm"
+              onClick={() => setWizardOpen(true)}
+              title="指向已有配置文件 → 树形结构 → 勾选节点 → 生成定义草稿"
+            >
+              <Icon name="sparkle" className="h-3.5 w-3.5" />
+              反向生成
+            </button>
+            <button
+              type="button"
               className="btn-ghost btn-sm"
               onClick={() => setPlaygroundOpen(true)}
               title="file.render：Tera 模板 + JSON 上下文 → 文本预览（不写磁盘）"
@@ -614,6 +962,11 @@ export function AgentDefsPage() {
       </Drawer>
 
       <TemplatePlayground open={playgroundOpen} onClose={() => setPlaygroundOpen(false)} />
+      <ReverseWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onSaved={() => void load()}
+      />
     </div>
   );
 }
