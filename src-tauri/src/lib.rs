@@ -3036,6 +3036,143 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
         );
     }
 
+    println!("[34] 换机迁移：导出 → 全新环境导入 → 不覆盖手改");
+    {
+        use crate::share;
+        // 「源机器」：设置（含自定义定义目录）+ 2 个档案 + 1 个自定义定义
+        let src_root = base.join("mig-src");
+        std::fs::create_dir_all(&src_root).unwrap();
+        let src_defs = src_root.join("agents");
+        std::fs::create_dir_all(&src_defs).unwrap();
+        let src_store = crate::store::Store::open(&src_root.join("m.db")).unwrap();
+
+        // 自定义定义：内置 opencode 加一行注释 → 非纯净；再放一个未改动的导出副本（不应被带走）
+        let opencode_builtin = crate::agentdef::BUILTIN_FILES
+            .iter()
+            .find(|(id, _)| *id == "opencode")
+            .map(|(_, t)| *t)
+            .unwrap();
+        let custom_def = format!("# 手改注释\n{}", opencode_builtin);
+        std::fs::write(src_defs.join("opencode.toml"), &custom_def).unwrap();
+        std::fs::write(src_defs.join("claude-code.toml"), opencode_builtin).unwrap(); // 未改动 → 导出时应跳过
+
+        // 设置：指向这个定义目录 + 一个可识别字段
+        let mut settings = src_store.load_settings();
+        settings.definitions_dir = src_defs.to_string_lossy().to_string();
+        settings.scan_home_depth = 4;
+        src_store.save_settings(&settings).unwrap();
+
+        // 2 个档案
+        for name in ["工作环境", "轻量环境"] {
+            let profile = crate::model::ProfileResource {
+                id: 0,
+                name: name.into(),
+                description: "迁移测试".into(),
+                agents: vec![],
+                counts: Default::default(),
+                updated_at: String::new(),
+            };
+            let items = vec![crate::model::ProfileItem {
+                id: 0,
+                resource_type: "mcp".into(),
+                resource_ref: "filesystem".into(),
+                display: "filesystem".into(),
+            }];
+            src_store.profile_save(&profile, &items).unwrap();
+        }
+
+        // 导出
+        let outcome = share::export_migration(&src_store, true).unwrap();
+        let bundle = std::path::PathBuf::from(&outcome.path);
+        check!(
+            outcome.profile_count == 2 && outcome.definition_count == 1 && outcome.settings_included,
+            "导出：{} 个档案 + {} 个定义 + 设置",
+            outcome.profile_count,
+            outcome.definition_count
+        );
+        check!(
+            bundle.join("migration.json").is_file()
+                && bundle.join("settings.json").is_file()
+                && bundle.join("profiles").is_dir(),
+            "包结构完整（manifest / settings / profiles）"
+        );
+        check!(
+            bundle.join("definitions").join("opencode.toml").is_file()
+                && !bundle.join("definitions").join("claude-code.toml").exists(),
+            "只带走自定义定义（未改动的导出副本不带）"
+        );
+        let settings_text = std::fs::read_to_string(bundle.join("settings.json")).unwrap();
+        check!(
+            !settings_text.contains("onboardingDone") || !settings_text.contains("onboardingDone\": true"),
+            "设置中的引导标记不带走"
+        );
+
+        // 「目标机器」：全新目录 + 全新库
+        let dst_root = base.join("mig-dst");
+        std::fs::create_dir_all(&dst_root).unwrap();
+        let dst_defs = dst_root.join("agents");
+        let dst_store = crate::store::Store::open(&dst_root.join("m.db")).unwrap();
+        // 目标机先有自己的设置（不同 definitions_dir + 引导已完成）
+        let mut dst_settings = dst_store.load_settings();
+        dst_settings.definitions_dir = dst_defs.to_string_lossy().to_string();
+        dst_settings.onboarding_done = true;
+        dst_store.save_settings(&dst_settings).unwrap();
+
+        let summary = share::import_migration(
+            &dst_store,
+            &bundle,
+            true,
+            true,
+            true,
+        )
+        .unwrap();
+        check!(
+            summary.profiles_imported == 2
+                && summary.definitions_imported == 1
+                && summary.settings_applied,
+            "导入：{} 档案 / {} 定义 / 设置已应用",
+            summary.profiles_imported,
+            summary.definitions_imported
+        );
+        let imported_settings = dst_store.load_settings();
+        check!(
+            imported_settings.scan_home_depth == 4,
+            "设置字段迁移成功（scan_home_depth=4）"
+        );
+        check!(
+            imported_settings.onboarding_done,
+            "目标机的引导标记保留（不被源机覆盖）"
+        );
+        check!(
+            dst_store.profile_list().len() == 2
+                && dst_defs.join("opencode.toml").is_file(),
+            "目标机数据就位（档案 + 定义）"
+        );
+
+        // 再导一次再导一次：同名定义跳过（不覆盖目标机手改）
+        let summary2 = share::import_migration(&dst_store, &bundle, false, false, true).unwrap();
+        check!(
+            summary2.definitions_imported == 0
+                && summary2
+                    .skipped
+                    .iter()
+                    .any(|s| s.contains("不覆盖")),
+            "重复导入：同名定义跳过（{}）",
+            summary2.skipped.join("；")
+        );
+
+        // 迁移包列表
+        let metas = share::list_migrations(&src_store);
+        check!(
+            metas.len() == 1 && metas[0].profile_count == 2 && metas[0].bytes > 0,
+            "迁移包列表（{} 个，{} 字节）",
+            metas.len(),
+            metas[0].bytes
+        );
+        let _ = std::fs::remove_file(src_root.join("m.db"));
+        let _ = std::fs::remove_file(dst_root.join("m.db"));
+    }
+
     println!("\n=== 结果：{} 项通过，{} 项失败 ===", pass, fail);
     println!("沙箱残留（可手动删除）: {}", base.display());
     if fail > 0 {
@@ -3166,6 +3303,9 @@ pub fn run() {
             commands::profile_export,
             commands::profile_export_list,
             commands::profile_import,
+            commands::migration_export,
+            commands::migration_list,
+            commands::migration_import,
             commands::provider_sync_plan,
             commands::provider_sync_apply,
             commands::profile_list,

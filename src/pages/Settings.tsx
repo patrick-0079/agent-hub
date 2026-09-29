@@ -2,11 +2,12 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { Icon, type IconName } from "../components/Icon";
-import { Badge, Card, PathRow, SectionCard, StatusDot, Toggle, useCopy } from "../components/ui";
+import { Badge, Card, Empty, PathRow, SectionCard, StatusDot, Toggle, useCopy } from "../components/ui";
 import { api, describeError } from "../lib/api";
+import { formatBytes } from "../lib/format";
 import { CATEGORY_LABEL, useReveal } from "../lib/hooks";
 import { useApp } from "../lib/store";
-import type { ExecutableInfo } from "../lib/types";
+import type { ExecutableInfo, MigrationMeta, MigrationOutcome } from "../lib/types";
 
 function PathListEditor({
   title,
@@ -496,6 +497,9 @@ export function Settings() {
         </div>
       </div>
 
+      {/* 换机迁移 */}
+      <MigrationCard />
+
       {/* 关于 */}
       <SectionCard title="关于" subtitle="AgentHub · 统一 Agent 环境管理器">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -503,7 +507,7 @@ export function Settings() {
             { label: "版本", value: host ? `v${host.appVersion}` : "—", icon: "sparkle" as IconName },
             { label: "运行平台", value: host ? `${host.os} · ${host.arch}` : "—", icon: "cpu" as IconName },
             { label: "主机名", value: host?.hostname ?? "—", icon: "link" as IconName },
-            { label: "当前阶段", value: "M0 · 侦察与可视化", icon: "shield" as IconName },
+            { label: "能力目录", value: "31 项全部实现", icon: "shield" as IconName },
           ].map((item) => (
             <div key={item.label} className="rounded-lg border border-ink-800 bg-ink-900 px-3 py-2.5">
               <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
@@ -516,5 +520,213 @@ export function Settings() {
         </div>
       </SectionCard>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------- 换机迁移 */
+
+function MigrationCard() {
+  const setBanner = useApp((s) => s.setBanner);
+  const reveal = useReveal();
+  const [includeSettings, setIncludeSettings] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [lastExport, setLastExport] = useState<MigrationOutcome | null>(null);
+  const [bundles, setBundles] = useState<MigrationMeta[]>([]);
+  const [importOpts, setImportOpts] = useState<Record<string, { settings: boolean; profiles: boolean; definitions: boolean }>>({});
+  const [importing, setImporting] = useState<string | null>(null);
+
+  const refresh = () => {
+    api
+      .migrationList()
+      .then(setBundles)
+      .catch(() => setBundles([]));
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const doExport = async () => {
+    setBusy(true);
+    try {
+      const outcome = await api.migrationExport(includeSettings);
+      setLastExport(outcome);
+      refresh();
+    } catch (error) {
+      setBanner(describeError(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doImport = async (bundle: MigrationMeta) => {
+    const opts = importOpts[bundle.path] ?? { settings: true, profiles: true, definitions: true };
+    setImporting(bundle.path);
+    try {
+      const summary = await api.migrationImport(
+        bundle.path,
+        opts.settings && bundle.settingsIncluded,
+        opts.profiles,
+        opts.definitions,
+      );
+      setBanner(
+        `迁移完成：档案 ${summary.profilesImported} · 定义 ${summary.definitionsImported}` +
+          `${summary.settingsApplied ? " · 设置已应用" : ""}` +
+          (summary.skipped.length > 0 ? `；跳过 ${summary.skipped.length} 项（${summary.skipped[0]}…）` : ""),
+      );
+    } catch (error) {
+      setBanner(describeError(error));
+    } finally {
+      setImporting(null);
+    }
+  };
+
+  return (
+    <SectionCard
+      title="换机迁移"
+      subtitle="一个目录带走全部环境定义：设置 + 环境档案 + 自定义 Agent 定义 —— 密钥与当前用户绑定（DPAPI），永不进包，换机后重新录入"
+      action={
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="btn-ghost btn-sm"
+            onClick={refresh}
+            title="刷新迁移包列表"
+          >
+            <Icon name="refresh" className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" className="btn-primary btn-sm" onClick={() => void doExport()} disabled={busy}>
+            <Icon name="external" className="h-3.5 w-3.5" />
+            {busy ? "导出中…" : "导出迁移包"}
+          </button>
+        </div>
+      }
+      bodyClassName="space-y-3"
+    >
+      <div className="rounded-md border border-ink-800 bg-ink-900 px-3 py-2">
+        <Toggle
+          checked={includeSettings}
+          onChange={setIncludeSettings}
+          label="包含设置（扫描范围 / 代理 / 工具链覆盖等）"
+          hint="引导标记不带走；目标机的定义目录不会被源机路径覆盖"
+        />
+      </div>
+
+      {lastExport && (
+        <div className="rounded-md border border-brand-800 bg-brand-900 px-3 py-2.5">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Icon name="check" className="h-4 w-4 text-brand-400" />
+            <span className="text-brand-400">
+              已导出：{lastExport.profileCount} 个档案 · {lastExport.definitionCount} 个自定义定义
+              {lastExport.settingsIncluded ? " · 含设置" : ""}
+            </span>
+            <button
+              type="button"
+              className="btn-ghost btn-sm ml-auto"
+              onClick={() => reveal(lastExport.path)}
+            >
+              <Icon name="folder" className="h-3.5 w-3.5" />
+              打开目录
+            </button>
+            <button type="button" className="btn-ghost btn-sm" onClick={() => setLastExport(null)}>
+              <Icon name="close" className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="mono mt-1 truncate text-[10.5px] text-slate-400" title={lastExport.path}>
+            {lastExport.path}
+          </div>
+        </div>
+      )}
+
+      {bundles.length === 0 ? (
+        <Empty
+          icon="external"
+          title="还没有迁移包"
+          description="「导出迁移包」会把设置、全部环境档案与自定义 Agent 定义打进 exports/migrations/ 下的一个目录；整个目录拷到新机器后在这里导入。"
+        />
+      ) : (
+        <div className="space-y-2">
+          {bundles.map((bundle) => {
+            const opts = importOpts[bundle.path] ?? { settings: true, profiles: true, definitions: true };
+            return (
+              <div key={bundle.path} className="rounded-md border border-ink-800 bg-ink-900 px-3 py-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Icon name="folder" className="h-4 w-4 shrink-0 text-slate-400" />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm text-slate-200">{bundle.exportedAt} 导出</span>
+                      <Badge tone="violet" icon="profiles">
+                        档案 {bundle.profileCount}
+                      </Badge>
+                      {bundle.definitionCount > 0 && (
+                        <Badge tone="sky" icon="adapter">
+                          定义 {bundle.definitionCount}
+                        </Badge>
+                      )}
+                      {bundle.settingsIncluded && <Badge tone="teal">含设置</Badge>}
+                      <Badge tone="slate">v{bundle.appVersion || "?"}</Badge>
+                    </span>
+                    <span className="mono mt-0.5 block truncate text-[10.5px]" title={bundle.path}>
+                      {bundle.path} · {formatBytes(bundle.bytes)}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-primary btn-sm shrink-0"
+                    onClick={() => void doImport(bundle)}
+                    disabled={importing === bundle.path}
+                  >
+                    <Icon name="plus" className="h-3.5 w-3.5" />
+                    {importing === bundle.path ? "导入中…" : "导入到本机"}
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-ink-800 pt-2 text-[11px] text-slate-500">
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={opts.profiles}
+                      onChange={(e) =>
+                        setImportOpts((prev) => ({
+                          ...prev,
+                          [bundle.path]: { ...opts, profiles: e.target.checked },
+                        }))
+                      }
+                    />
+                    档案（同名自动加后缀）
+                  </label>
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={opts.definitions}
+                      onChange={(e) =>
+                        setImportOpts((prev) => ({
+                          ...prev,
+                          [bundle.path]: { ...opts, definitions: e.target.checked },
+                        }))
+                      }
+                    />
+                    定义（同名跳过不覆盖手改）
+                  </label>
+                  <label className={`flex items-center gap-1.5 ${bundle.settingsIncluded ? "" : "opacity-40"}`}>
+                    <input
+                      type="checkbox"
+                      checked={opts.settings && bundle.settingsIncluded}
+                      disabled={!bundle.settingsIncluded}
+                      onChange={(e) =>
+                        setImportOpts((prev) => ({
+                          ...prev,
+                          [bundle.path]: { ...opts, settings: e.target.checked },
+                        }))
+                      }
+                    />
+                    设置（保留本机引导与定义目录）
+                  </label>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </SectionCard>
   );
 }

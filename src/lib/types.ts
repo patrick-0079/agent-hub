@@ -567,6 +567,33 @@ export interface TemplateRenderResult {
   error: string;
 }
 
+/* ------------------------------------------------- 换机迁移（M4） */
+
+export interface MigrationOutcome {
+  path: string;
+  profileCount: number;
+  definitionCount: number;
+  settingsIncluded: boolean;
+}
+
+export interface MigrationMeta {
+  path: string;
+  exportedAt: string;
+  appVersion: string;
+  profileCount: number;
+  definitionCount: number;
+  settingsIncluded: boolean;
+  bytes: number;
+}
+
+export interface MigrationImportSummary {
+  profilesImported: number;
+  definitionsImported: number;
+  settingsApplied: boolean;
+  /** 跳过的项及原因 */
+  skipped: string[];
+}
+
 /* ------------------------------------------------- 档案导出/导入（M1） */
 
 export interface ProfileExportMeta {

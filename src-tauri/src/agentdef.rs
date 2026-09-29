@@ -467,11 +467,27 @@ pub fn load(settings: &AppSettings) -> Loaded {
 }
 
 /// 归一化文本，用于判断用户文件是否只是内置定义的未改动副本
-fn normalize(text: &str) -> String {
+pub fn normalize(text: &str) -> String {
     text.trim_start_matches('\u{feff}')
         .replace("\r\n", "\n")
         .trim()
         .to_string()
+}
+
+/// 该定义文本是否为「自定义」（相对内置有改动，或内置里根本没有这个 id）
+/// 换机迁移导出时用它只带走真正手写/改过的定义，不复制未改动的导出副本
+pub fn is_custom_definition(text: &str) -> bool {
+    match parse(text) {
+        Ok(file) => {
+            let id = file.agent.id.clone();
+            !BUILTIN_FILES
+                .iter()
+                .find(|(bid, _)| *bid == id)
+                .map(|(_, builtin)| normalize(builtin) == normalize(text))
+                .unwrap_or(false)
+        }
+        Err(_) => false, // 解析失败的文件不迁移（目标机上也会被跳过）
+    }
 }
 
 fn used_capabilities(file: &AgentFile) -> Vec<UsedCapability> {

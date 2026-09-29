@@ -19,6 +19,9 @@ import type {
   ManifestInfo,
   McpHandshakeResult,
   McpResource,
+  MigrationImportSummary,
+  MigrationMeta,
+  MigrationOutcome,
   NpmInstallPlan,
   NpmOutdated,
   ProfileDetail,
@@ -169,6 +172,21 @@ export const api = {
   npmOutdated: (manager: string) => call<NpmOutdated[]>("npm_outdated", { manager }),
   templateRender: (template: string, contextJson: string) =>
     call<TemplateRenderResult>("template_render", { template, contextJson }),
+  migrationExport: (includeSettings = true) =>
+    call<MigrationOutcome>("migration_export", { includeSettings }),
+  migrationList: () => call<MigrationMeta[]>("migration_list"),
+  migrationImport: (
+    path: string,
+    includeSettings: boolean,
+    includeProfiles: boolean,
+    includeDefinitions: boolean,
+  ) =>
+    call<MigrationImportSummary>("migration_import", {
+      path,
+      includeSettings,
+      includeProfiles,
+      includeDefinitions,
+    }),
   profileExport: (id: number) => call<ProfileExportOutcome>("profile_export", { id }),
   profileExportList: () => call<ProfileExportMeta[]>("profile_export_list"),
   profileImport: (path: string) => call<ProfileDetail>("profile_import", { path }),

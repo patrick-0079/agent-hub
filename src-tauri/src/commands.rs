@@ -1067,6 +1067,51 @@ pub fn profile_import(
         .ok_or_else(|| "导入成功但读取详情失败".to_string())
 }
 
+/* ------------------------------------------------------- 换机迁移（M4） */
+
+/// 导出迁移包：设置（可选）+ 全部档案 + 全部自定义 Agent 定义。
+/// 密钥与 DPAPI 绑定当前用户，永不进包 —— 换机后重新录入。
+#[tauri::command]
+pub fn migration_export(
+    state: State<'_, AppState>,
+    include_settings: Option<bool>,
+) -> Result<crate::share::MigrationOutcome, String> {
+    crate::share::export_migration(&state.store, include_settings.unwrap_or(true))
+}
+
+/// 列出全部迁移包（按导出时间倒序）
+#[tauri::command]
+pub fn migration_list(
+    state: State<'_, AppState>,
+) -> Vec<crate::share::MigrationMeta> {
+    crate::share::list_migrations(&state.store)
+}
+
+/// 导入迁移包（各部分可选；同名定义跳过不覆盖，档案走同名后缀）
+#[tauri::command]
+pub fn migration_import(
+    state: State<'_, AppState>,
+    path: String,
+    include_settings: Option<bool>,
+    include_profiles: Option<bool>,
+    include_definitions: Option<bool>,
+) -> Result<crate::share::MigrationImportSummary, String> {
+    // 导入设置后刷新内存中的副本（代理等立即生效）
+    let summary = crate::share::import_migration(
+        &state.store,
+        std::path::Path::new(&path),
+        include_settings.unwrap_or(true),
+        include_profiles.unwrap_or(true),
+        include_definitions.unwrap_or(true),
+    )?;
+    if summary.settings_applied {
+        if let Ok(mut guard) = state.settings.lock() {
+            *guard = state.store.load_settings();
+        }
+    }
+    Ok(summary)
+}
+
 /* --------------------------------------------------- 供应商分发（T2） */
 
 fn provider_sync_context(
