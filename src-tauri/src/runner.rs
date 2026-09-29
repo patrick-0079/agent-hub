@@ -1,9 +1,8 @@
 //! Python 环境的创建与删除（T3 能力 `py.env.create` / `py.env.remove`）。
 //!
-//! - 创建走 `uv venv`（uv 不在 PATH 时给出明确指引；conda 创建慢且参数形态
-//!   各异，暂不启用，界面会明确说明）
-//! - 创建后读 `pyvenv.cfg` 提取解释器版本，并写入 python_env 表标记为受管
-//!   （放在扫描根目录之外也能在界面看到）
+//! - 创建支持两种管理器：`uv venv`（快）与 `conda create -p`（慢但带依赖求解）
+//! - uv 创建后读 `pyvenv.cfg` 提取版本；conda 创建后读 `conda-meta/python-*` 统计
+//! - 创建后写入 python_env 表标记为受管（放在扫描根目录之外也能在界面看到）
 //! - 删除与所有破坏性操作一致：**整个目录移入回收站**（可恢复），同时清掉
 //!   受管记录；绝不直接 rm
 
@@ -17,6 +16,8 @@ use std::time::Duration;
 pub struct EnvCreatePlan {
     pub tier: String,
     pub tier_code: String,
+    /// uv | conda
+    pub manager: String,
     pub command: String,
     pub args: Vec<String>,
     pub target: String,
@@ -27,6 +28,7 @@ pub struct EnvCreatePlan {
 }
 
 const CREATE_TIMEOUT: Duration = Duration::from_secs(180);
+const CONDA_CREATE_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// 解析 uv 可执行文件（PATH → ~/.local/bin → ~/.cargo/bin，与工具链扫描同序）
 pub fn uv_path() -> Option<PathBuf> {
@@ -38,61 +40,117 @@ pub fn uv_path() -> Option<PathBuf> {
     crate::util::resolve_program("uv", &extra)
 }
 
-/// 计划：展示将执行的命令与目标目录状态（T3 需要用户确认）
-pub fn plan_env_create(path: &str, python: Option<&str>) -> EnvCreatePlan {
+/// 解析 conda 可执行文件（PATH + 常见安装目录，与工具链扫描同序）
+pub fn conda_path() -> Option<PathBuf> {
+    let extra = [
+        crate::util::expand_buf("%USERPROFILE%/anaconda3/Scripts"),
+        crate::util::expand_buf("%USERPROFILE%/miniconda3/Scripts"),
+        crate::util::expand_buf("%PROGRAMDATA%/anaconda3/Scripts"),
+        crate::util::expand_buf("%PROGRAMDATA%/miniconda3/Scripts"),
+        crate::util::expand_buf("%LOCALAPPDATA%/miniconda3/Scripts"),
+    ];
+    crate::util::resolve_program("conda", &extra)
+}
+
+/// 计划：展示将执行的命令与目标目录状态（T3 需要用户确认）。
+/// manager 取值：uv（默认）| conda
+pub fn plan_env_create(path: &str, python: Option<&str>, manager: Option<&str>) -> EnvCreatePlan {
     let target = crate::util::expand_path(path);
-    let uv = uv_path();
-    let mut args = vec!["venv".to_string(), target.clone()];
-    if let Some(v) = python.map(str::trim).filter(|v| !v.is_empty()) {
-        args.push("--python".to_string());
-        args.push(v.to_string());
-    }
-    let python_note = match python.map(str::trim).filter(|v| !v.is_empty()) {
-        Some(v) => format!("指定 Python {}", v),
-        None => "使用 uv 默认解析的 Python（首次可能需要下载解释器）".to_string(),
+    let py = python.map(str::trim).filter(|v| !v.is_empty());
+    let use_conda = manager.map(|m| m.eq_ignore_ascii_case("conda")).unwrap_or(false);
+
+    let (exe, args, python_note, found, message) = if use_conda {
+        let conda = conda_path();
+        let mut args = vec!["create".to_string(), "-y".to_string(), "-p".to_string(), target.clone()];
+        let note = match py {
+            Some(v) => {
+                args.push(format!("python={}", v));
+                format!("指定 Python {}", v)
+            }
+            None => {
+                args.push("python".to_string());
+                "安装 conda 默认解析的最新 Python".to_string()
+            }
+        };
+        (
+            conda.as_ref().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| "conda".into()),
+            args,
+            note,
+            conda.is_some(),
+            if conda.is_none() {
+                "未找到 conda：请先安装 Miniconda/Anaconda，或到「设置 → 工具链」确认".to_string()
+            } else if Path::new(&target).exists() {
+                "目标目录已存在 —— 创建会失败，请换一个位置".to_string()
+            } else {
+                "将执行 conda create（依赖求解 + 解包，可能需要数分钟）".to_string()
+            },
+        )
+    } else {
+        let uv = uv_path();
+        let mut args = vec!["venv".to_string(), target.clone()];
+        let note = match py {
+            Some(v) => {
+                args.push("--python".to_string());
+                args.push(v.to_string());
+                format!("指定 Python {}", v)
+            }
+            None => "使用 uv 默认解析的 Python（首次可能需要下载解释器）".to_string(),
+        };
+        (
+            uv.as_ref().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| "uv".into()),
+            args,
+            note,
+            uv.is_some(),
+            if uv.is_none() {
+                "未找到 uv：请先安装（https://docs.astral.sh/uv/），或到「设置 → 工具链」手动指定路径".to_string()
+            } else if Path::new(&target).exists() {
+                "目标目录已存在 —— 创建会失败，请换一个位置".to_string()
+            } else {
+                "将执行 uv venv 创建虚拟环境（通常数秒完成）".to_string()
+            },
+        )
     };
+
     EnvCreatePlan {
         tier: "变更".into(),
         tier_code: "T3".into(),
-        command: uv
-            .as_ref()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|| "uv".into()),
+        manager: if use_conda { "conda".into() } else { "uv".into() },
+        command: exe,
         args,
         target: target.clone(),
         target_exists: Path::new(&target).exists(),
         python_note,
-        uv_found: uv.is_some(),
-        message: if uv.is_none() {
-            "未找到 uv：请先安装（https://docs.astral.sh/uv/），或到「设置 → 工具链」手动指定路径".into()
-        } else if Path::new(&target).exists() {
-            "目标目录已存在 —— 创建会失败，请换一个位置".into()
-        } else {
-            "将执行上面的命令创建虚拟环境（写入磁盘，可整体删除恢复）".into()
-        },
+        uv_found: found,
+        message,
     }
 }
 
-/// 执行创建：spawn `uv venv`，成功后读 pyvenv.cfg 并落库为受管环境
+/// 执行创建：spawn 包管理器，成功后读版本并落库为受管环境。
+/// manager 取值：uv（默认）| conda
 pub fn apply_env_create(
     store: &Store,
     path: &str,
     python: Option<&str>,
+    manager: Option<&str>,
 ) -> crate::actions::ActionResult {
+    let use_conda = manager.map(|m| m.eq_ignore_ascii_case("conda")).unwrap_or(false);
     let mut result = crate::actions::ActionResult {
         ok: true,
-        title: "创建 Python 环境（uv venv）".into(),
+        title: format!(
+            "创建 Python 环境（{}）",
+            if use_conda { "conda create" } else { "uv venv" }
+        ),
         summary: String::new(),
         steps: Vec::new(),
         manifest: None,
         restore_hint: String::new(),
         warnings: Vec::new(),
     };
-    let plan = plan_env_create(path, python);
+    let plan = plan_env_create(path, python, manager);
     if !plan.uv_found {
         result.ok = false;
         result.steps.push(crate::actions::StepResult {
-            target: "uv".into(),
+            target: plan.manager.clone(),
             ok: false,
             message: plan.message,
         });
@@ -108,34 +166,60 @@ pub fn apply_env_create(
         return result;
     }
 
-    let uv = uv_path().expect("plan 已确认 uv 存在");
-    let mut args: Vec<String> = vec!["venv".into(), plan.target.clone()];
-    if let Some(v) = python.map(str::trim).filter(|v| !v.is_empty()) {
-        args.push("--python".into());
-        args.push(v.to_string());
-    }
-    let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    let output = crate::util::run_capture(&uv, &arg_refs, CREATE_TIMEOUT);
+    let exe = if use_conda {
+        conda_path().expect("plan 已确认 conda 存在")
+    } else {
+        uv_path().expect("plan 已确认 uv 存在")
+    };
+    let timeout = if use_conda {
+        CONDA_CREATE_TIMEOUT
+    } else {
+        CREATE_TIMEOUT
+    };
+    let arg_refs: Vec<&str> = plan.args.iter().map(|s| s.as_str()).collect();
+    let output = crate::util::run_capture(&exe, &arg_refs, timeout);
 
     match output {
         Ok(text) => {
             let target = PathBuf::from(&plan.target);
-            let cfg = target.join("pyvenv.cfg");
-            if !cfg.is_file() {
-                result.ok = false;
-                result.steps.push(crate::actions::StepResult {
-                    target: plan.target.clone(),
-                    ok: false,
-                    message: format!("命令退出但未生成 pyvenv.cfg —— 输出：{}", truncate(&text, 400)),
-                });
-                return result;
-            }
-            let version = read_pyvenv_version(&cfg);
+            // 成功判定与版本读取：uv 看 pyvenv.cfg；conda 看 conda-meta/python-*.json
+            let version = if use_conda {
+                let meta = target.join("conda-meta");
+                if !meta.is_dir() {
+                    result.ok = false;
+                    result.steps.push(crate::actions::StepResult {
+                        target: plan.target.clone(),
+                        ok: false,
+                        message: format!(
+                            "命令退出但未生成 conda-meta 目录 —— 输出：{}",
+                            truncate(&text, 400)
+                        ),
+                    });
+                    return result;
+                }
+                crate::scan::python_envs::conda_meta_info(&target).0
+            } else {
+                let cfg = target.join("pyvenv.cfg");
+                if !cfg.is_file() {
+                    result.ok = false;
+                    result.steps.push(crate::actions::StepResult {
+                        target: plan.target.clone(),
+                        ok: false,
+                        message: format!(
+                            "命令退出但未生成 pyvenv.cfg —— 输出：{}",
+                            truncate(&text, 400)
+                        ),
+                    });
+                    return result;
+                }
+                read_pyvenv_version(&cfg)
+            };
             let name = target
                 .file_name()
                 .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_else(|| "uv-env".into());
-            match store.python_env_upsert(&name, "uv", &plan.target, version.as_deref()) {
+                .unwrap_or_else(|| "agent-env".into());
+            let manager_name = if use_conda { "conda" } else { "uv" };
+            match store.python_env_upsert(&name, manager_name, &plan.target, version.as_deref()) {
                 Ok(_) => {
                     result.steps.push(crate::actions::StepResult {
                         target: plan.target.clone(),

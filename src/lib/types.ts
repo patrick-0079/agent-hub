@@ -526,6 +526,8 @@ export interface SyncHistoryEntry {
 export interface EnvCreatePlan {
   tier: string;
   tierCode: string;
+  /** uv | conda */
+  manager: string;
   command: string;
   args: string[];
   target: string;

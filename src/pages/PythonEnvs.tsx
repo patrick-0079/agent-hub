@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { Icon } from "../components/Icon";
-import { Badge, Card, Empty, Modal, SearchInput, SectionCard, StatusDot } from "../components/ui";
+import { Badge, Card, Empty, Modal, SearchInput, SectionCard, SegmentedControl, StatusDot } from "../components/ui";
 import { api, describeError } from "../lib/api";
 import { shortenPath } from "../lib/format";
 import { MANAGER_LABEL, useReveal } from "../lib/hooks";
@@ -33,6 +33,7 @@ function CreateEnvDialog({
   onDone: () => void;
 }) {
   const setBanner = useApp((s) => s.setBanner);
+  const [manager, setManager] = useState("uv");
   const [path, setPath] = useState("");
   const [python, setPython] = useState("");
   const [plan, setPlan] = useState<EnvCreatePlan | null>(null);
@@ -41,6 +42,7 @@ function CreateEnvDialog({
 
   useEffect(() => {
     if (open) {
+      setManager("uv");
       setPath("");
       setPython("");
       setPlan(null);
@@ -49,13 +51,13 @@ function CreateEnvDialog({
   }, [open]);
 
   // 输入变化时刷新计划（先看将执行什么）
-  const refreshPlan = (nextPath: string, nextPython: string) => {
+  const refreshPlan = (nextManager: string, nextPath: string, nextPython: string) => {
     if (!nextPath.trim()) {
       setPlan(null);
       return;
     }
     api
-      .pythonEnvCreatePlan(nextPath.trim(), nextPython.trim() || null)
+      .pythonEnvCreatePlan(nextPath.trim(), nextPython.trim() || null, nextManager)
       .then(setPlan)
       .catch((error) => setBanner(describeError(error)));
   };
@@ -64,7 +66,7 @@ function CreateEnvDialog({
     setBusy(true);
     setResult(null);
     try {
-      const r = await api.pythonEnvCreateRun(path.trim(), python.trim() || null);
+      const r = await api.pythonEnvCreateRun(path.trim(), python.trim() || null, manager);
       setResult(r);
       if (r.ok) onDone();
     } catch (error) {
@@ -74,6 +76,7 @@ function CreateEnvDialog({
     }
   };
 
+  const isConda = manager === "conda";
   const blocked =
     busy || !path.trim() || (plan != null && (!plan.uvFound || plan.targetExists));
 
@@ -81,7 +84,7 @@ function CreateEnvDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title="创建 Python 环境（uv venv）"
+      title="创建 Python 环境"
       subtitle="T3 变更操作：执行前先看计划；创建只写目标目录，删除时整体入回收站"
       width="max-w-2xl"
       footer={
@@ -95,13 +98,29 @@ function CreateEnvDialog({
               取消
             </button>
             <button type="button" className="btn-primary" onClick={() => void create()} disabled={blocked}>
-              {busy ? "创建中…" : "执行创建"}
+              {busy ? (isConda ? "创建中…（conda 可能要数分钟）" : "创建中…") : "执行创建"}
             </button>
           </>
         )
       }
     >
       <div className="space-y-3.5">
+        <div>
+          <label className="text-xs text-slate-400">管理器</label>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <SegmentedControl
+              value={manager}
+              onChange={(next) => {
+                setManager(next);
+                refreshPlan(next, path, python);
+              }}
+              options={[
+                { value: "uv", label: "uv（快，秒级）" },
+                { value: "conda", label: "conda（带依赖求解）" },
+              ]}
+            />
+          </div>
+        </div>
         <div className="grid gap-3 sm:grid-cols-[1fr_180px]">
           <div>
             <label className="text-xs text-slate-400">目标目录（绝对路径，父目录需已存在）</label>
@@ -109,7 +128,7 @@ function CreateEnvDialog({
               value={path}
               onChange={(e) => {
                 setPath(e.target.value);
-                refreshPlan(e.target.value, python);
+                refreshPlan(manager, e.target.value, python);
               }}
               placeholder="C:\envs\my-agent-env"
               className="input mt-1.5 font-mono text-xs"
@@ -121,9 +140,9 @@ function CreateEnvDialog({
               value={python}
               onChange={(e) => {
                 setPython(e.target.value);
-                refreshPlan(path, e.target.value);
+                refreshPlan(manager, path, e.target.value);
               }}
-              placeholder="如 3.12（留空用 uv 默认）"
+              placeholder={isConda ? "如 3.11（默认最新）" : "如 3.12（留空用默认）"}
               className="input mt-1.5 font-mono text-xs"
             />
           </div>
@@ -174,8 +193,10 @@ function CreateEnvDialog({
         )}
 
         <p className="text-[11px] leading-relaxed text-slate-500">
-          conda 创建暂未启用（参数形态随发行版差异大）；uv 不在 PATH 时到「设置 → 工具链」确认。
-          创建成功后环境会标记为「AgentHub 受管」，即使放在扫描目录之外也会出现在列表里。
+          {isConda
+            ? "conda create 走依赖求解与解包，可能需要数分钟；创建后读 conda-meta 记录版本并标记受管。"
+            : "uv venv 通常数秒完成（首次可能需要下载解释器）；conda 用户也可以切到 conda 模式。"}
+          管理器不在 PATH 时到「设置 → 工具链」确认。创建成功后即使放在扫描目录之外也会出现在列表里。
         </p>
       </div>
     </Modal>
@@ -372,14 +393,14 @@ export function PythonPage() {
         <Card className="border-dashed">
           <div className="flex items-center gap-2">
             <Icon name="plus" className="h-4 w-4 text-accent-400" />
-            <span className="text-sm text-slate-200">创建 / 删除（uv）</span>
+            <span className="text-sm text-slate-200">创建 / 删除（uv + conda）</span>
             <Badge tone="teal" className="ml-auto">
               已实现
             </Badge>
           </div>
           <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-            「创建环境」先展示将执行的 <span className="font-mono">uv venv</span> 命令（T3
-            计划确认），创建后读 pyvenv.cfg 记录版本并标记受管；删除时整个目录移入回收站，可一键恢复。
+            「创建环境」先展示将执行的命令（uv venv 秒级 / conda create 带依赖求解，T3
+            计划确认），创建后读 pyvenv.cfg 或 conda-meta 记录版本并标记受管；删除时整个目录移入回收站，可一键恢复。
           </p>
         </Card>
         <Card className="border-dashed">

@@ -152,10 +152,10 @@ export const api = {
   snapshotDiff: (idA: number, idB: number) =>
     call<SnapshotDiff>("snapshot_diff", { idA, idB }),
   syncHistory: (limit = 50) => call<SyncHistoryEntry[]>("sync_history", { limit }),
-  pythonEnvCreatePlan: (path: string, python: string | null) =>
-    call<EnvCreatePlan>("python_env_create_plan", { path, python }),
-  pythonEnvCreateRun: (path: string, python: string | null) =>
-    call<ActionResult>("python_env_create_run", { path, python }),
+  pythonEnvCreatePlan: (path: string, python: string | null, manager: string | null) =>
+    call<EnvCreatePlan>("python_env_create_plan", { path, python, manager }),
+  pythonEnvCreateRun: (path: string, python: string | null, manager: string | null) =>
+    call<ActionResult>("python_env_create_run", { path, python, manager }),
   pythonEnvManaged: () => call<PythonEnv[]>("python_env_managed"),
   pythonEnvRemove: (path: string) => call<ActionResult>("python_env_remove", { path }),
   npmInstallPlan: (manager: string, packages: string[]) =>

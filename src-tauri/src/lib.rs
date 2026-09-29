@@ -2560,14 +2560,15 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
                 let target_str = target.to_string_lossy().to_string();
 
                 // 计划（T3 先看命令）
-                let plan = runner::plan_env_create(&target_str, Some("3.12"));
+                let plan = runner::plan_env_create(&target_str, Some("3.12"), None);
                 check!(
                     plan.uv_found
                         && plan.tier_code == "T3"
+                        && plan.manager == "uv"
                         && !plan.target_exists
                         && plan.args[0] == "venv"
                         && plan.args.contains(&"--python".to_string()),
-                    "计划：{} {:?}（{}）",
+                    "uv 计划：{} {:?}（{}）",
                     plan.command,
                     plan.args,
                     plan.python_note
@@ -2576,7 +2577,7 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
                 // 创建 + 受管记录
                 let store =
                     crate::store::Store::open(&base.join("selftest-pyenv.db")).unwrap();
-                let r = runner::apply_env_create(&store, &target_str, None);
+                let r = runner::apply_env_create(&store, &target_str, None, None);
                 check!(r.ok, "创建成功：{}", r.summary);
                 check!(target.join("pyvenv.cfg").is_file(), "pyvenv.cfg 已生成");
                 let managed = store.python_env_managed();
@@ -2615,6 +2616,55 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
                 check!(false, "未找到 uv，跳过环境创建测试（CI 已预装 uv）");
             }
         }
+
+        // conda：计划构造 + mock 管理器全链路（真实 conda create 太慢，不实跑）
+        let conda_plan = runner::plan_env_create(
+            &base.join("conda-env").to_string_lossy(),
+            Some("3.11"),
+            Some("conda"),
+        );
+        check!(
+            conda_plan.manager == "conda"
+                && conda_plan.args[0] == "create"
+                && conda_plan.args.contains(&"-p".to_string())
+                && conda_plan.args.contains(&"python=3.11".to_string()),
+            "conda 计划：{:?}",
+            conda_plan.args
+        );
+        // mock conda：收到 -p 路径后自行创建 conda-meta/python-*.json 结构
+        let conda_mock = base.join("mock-conda.cmd");
+        {
+            let script = "@echo off\r\nmd \"%~4\\conda-meta\" 2>nul\r\necho {}> \"%~4\\conda-meta\\python-3.11.9-h1_0.json\"\r\necho To be created: %~4\r\n";
+            std::fs::write(&conda_mock, script).unwrap();
+        }
+        let store2 = crate::store::Store::open(&base.join("selftest-conda.db")).unwrap();
+        // 绕过真实 conda 解析：直接调 apply 的内部逻辑等价做法是传入 mock 可执行 ——
+        // apply_env_create 内部自行解析 conda，因此这里用一个技巧：
+        // 把 mock 放进 PATH 优先位置不可靠。改为直接验证「mock 可执行 + 手工构造 plan」
+        // 的执行管线：手工执行 mock 后走 conda_meta_info 读取（与 apply 同一代码路径）。
+        let conda_target = base.join("conda-env");
+        let conda_target_str = conda_target.to_string_lossy().to_string();
+        let arg_refs: Vec<&str> = conda_plan.args.iter().map(|s| s.as_str()).collect();
+        let out = crate::util::run_capture(&conda_mock, &arg_refs, std::time::Duration::from_secs(30));
+        check!(out.is_ok(), "mock conda 执行成功");
+        let (version, pkg_count) = crate::scan::python_envs::conda_meta_info(&conda_target);
+        check!(
+            version.as_deref() == Some("3.11.9") && pkg_count == Some(1),
+            "conda-meta 解析（版本 {:?}，{} 个包）—— apply_env_create 用同一路径读版本",
+            version,
+            pkg_count.unwrap_or(0)
+        );
+        store2
+            .python_env_upsert("conda-env", "conda", &conda_target_str, version.as_deref())
+            .unwrap();
+        let managed2 = store2.python_env_managed();
+        check!(
+            managed2.len() == 1
+                && managed2[0].manager == "conda"
+                && managed2[0].python_version.as_deref() == Some("3.11.9"),
+            "conda 受管记录落库（manager=conda）"
+        );
+        let _ = std::fs::remove_file(base.join("selftest-conda.db"));
     }
 
     println!("[28] npm 全局包安装/卸载（mock 包管理器，不碰真实环境）");

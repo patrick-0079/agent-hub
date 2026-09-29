@@ -104,7 +104,8 @@ fn scan_conda(
 }
 
 /// 从 `conda-meta/python-3.12.7-*.json` 推导解释器版本，并统计包数量。
-fn conda_meta_info(env_path: &Path) -> (Option<String>, Option<usize>) {
+/// （runner 的 conda 环境创建也复用这一读取逻辑）
+pub fn conda_meta_info(env_path: &Path) -> (Option<String>, Option<usize>) {
     let meta_dir = env_path.join("conda-meta");
     let entries = match std::fs::read_dir(&meta_dir) {
         Ok(e) => e,

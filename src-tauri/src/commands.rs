@@ -939,8 +939,9 @@ pub fn sync_history(
 pub fn python_env_create_plan(
     path: String,
     python: Option<String>,
+    manager: Option<String>,
 ) -> crate::runner::EnvCreatePlan {
-    crate::runner::plan_env_create(&path, python.as_deref())
+    crate::runner::plan_env_create(&path, python.as_deref(), manager.as_deref())
 }
 
 #[tauri::command]
@@ -948,8 +949,9 @@ pub fn python_env_create_run(
     state: State<'_, AppState>,
     path: String,
     python: Option<String>,
+    manager: Option<String>,
 ) -> crate::actions::ActionResult {
-    crate::runner::apply_env_create(&state.store, &path, python.as_deref())
+    crate::runner::apply_env_create(&state.store, &path, python.as_deref(), manager.as_deref())
 }
 
 /// 受管 Python 环境清单（与扫描结果在界面上合并）
