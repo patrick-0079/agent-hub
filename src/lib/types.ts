@@ -549,6 +549,22 @@ export interface NpmInstallPlan {
   message: string;
 }
 
+/** 一个可更新的全局包（npm outdated 解析结果） */
+export interface NpmOutdated {
+  name: string;
+  current: string;
+  wanted: string;
+  latest: string;
+}
+
+/* ------------------------------------------------- 模板渲染（file.render） */
+
+export interface TemplateRenderResult {
+  ok: boolean;
+  output: string;
+  error: string;
+}
+
 /* ------------------------------------------------- 档案导出/导入（M1） */
 
 export interface ProfileExportMeta {

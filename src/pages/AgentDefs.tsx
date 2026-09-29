@@ -7,9 +7,11 @@ import {
   Card,
   Drawer,
   Empty,
+  Modal,
   SearchInput,
   SectionCard,
   SegmentedControl,
+  StatusDot,
   type Tone,
 } from "../components/ui";
 import { api, describeError } from "../lib/api";
@@ -21,6 +23,7 @@ import type {
   DefinitionsView,
   LoadedDef,
   PathRule,
+  TemplateRenderResult,
 } from "../lib/types";
 
 const TIER_META: Record<CapabilityTier, { label: string; code: string; tone: Tone; icon: IconName; detail: string }> = {
@@ -71,6 +74,103 @@ const STRENGTH_META: Record<string, { label: string; tone: Tone }> = {
   weak: { label: "弱证据", tone: "slate" },
 };
 
+/* -------------------------------------------------------- 模板试渲染 */
+
+const TEMPLATE_SAMPLE = `# {{ agent.name }} 环境注入
+{% for m in mcps %}MCP: {{ m }}
+{% endfor %}Base URL: {{ provider.base_url | default(value="未配置") }}`;
+
+const CONTEXT_SAMPLE = `{
+  "agent": { "name": "opencode" },
+  "mcps": ["filesystem", "fetch"],
+  "provider": { "base_url": "https://api.example.com/v1" }
+}`;
+
+function TemplatePlayground({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const setBanner = useApp((s) => s.setBanner);
+  const [template, setTemplate] = useState(TEMPLATE_SAMPLE);
+  const [context, setContext] = useState(CONTEXT_SAMPLE);
+  const [result, setResult] = useState<TemplateRenderResult | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    try {
+      setResult(await api.templateRender(template, context));
+    } catch (error) {
+      setBanner(describeError(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="模板试渲染（file.render · Tera）"
+      subtitle="M3.5 适配器模版的内核原语：模板 + JSON 上下文 → 文本；未定义变量报错不静默置空"
+      width="max-w-3xl"
+      footer={
+        <>
+          <button type="button" className="btn-ghost" onClick={onClose} disabled={busy}>
+            关闭
+          </button>
+          <button type="button" className="btn-primary" onClick={() => void run()} disabled={busy}>
+            {busy ? "渲染中…" : "渲染"}
+          </button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div>
+            <label className="text-xs text-slate-400">模板（Jinja2 / Tera 语法）</label>
+            <textarea
+              value={template}
+              onChange={(e) => setTemplate(e.target.value)}
+              spellCheck={false}
+              className="input mt-1.5 h-56 font-mono text-[11px] leading-relaxed"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-slate-400">上下文（JSON）</label>
+            <textarea
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              spellCheck={false}
+              className="input mt-1.5 h-56 font-mono text-[11px] leading-relaxed"
+            />
+          </div>
+        </div>
+        {result && (
+          <div>
+            <div className="mb-1.5 flex items-center gap-2 text-xs">
+              <StatusDot state={result.ok ? "ok" : "error"} />
+              <span className={result.ok ? "text-slate-300" : "text-rose-300"}>
+                {result.ok ? "渲染成功" : "渲染失败"}
+              </span>
+            </div>
+            <pre
+              className={`max-h-52 overflow-auto rounded-md border p-3 font-mono text-[11px] leading-relaxed ${
+                result.ok
+                  ? "border-ink-800 bg-ink-950 text-slate-300"
+                  : "border-rose-800/70 bg-rose-950 text-rose-200"
+              }`}
+            >
+              {result.ok ? result.output : result.error}
+            </pre>
+          </div>
+        )}
+        <p className="text-[11px] leading-relaxed text-slate-500">
+          未来的 Adapter 模版（M3.5）会把 profile / provider / mcp / env / secrets 注入同一上下文；
+          渲染结果是纯文本预览，这里不写任何磁盘。
+        </p>
+      </div>
+    </Modal>
+  );
+}
+
 export function AgentDefsPage() {
   const snapshot = useApp((s) => s.snapshot);
   const setBanner = useApp((s) => s.setBanner);
@@ -86,6 +186,7 @@ export function AgentDefsPage() {
   const [draft, setDraft] = useState<string>("");
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [playgroundOpen, setPlaygroundOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -351,6 +452,15 @@ export function AgentDefsPage() {
         subtitle={`共 ${view?.definitions.length ?? 0} 个定义（内置 ${view?.builtinCount ?? 0} · 用户 ${view?.userCount ?? 0}）—— 内核不含任何 Agent 专属逻辑`}
         action={
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              onClick={() => setPlaygroundOpen(true)}
+              title="file.render：Tera 模板 + JSON 上下文 → 文本预览（不写磁盘）"
+            >
+              <Icon name="sparkle" className="h-3.5 w-3.5" />
+              模板试渲染
+            </button>
             <button type="button" className="btn-ghost btn-sm" onClick={() => void exportBuiltins()}>
               <Icon name="plus" className="h-3.5 w-3.5" />
               导出内置定义
@@ -502,6 +612,8 @@ export function AgentDefsPage() {
           </div>
         )}
       </Drawer>
+
+      <TemplatePlayground open={playgroundOpen} onClose={() => setPlaygroundOpen(false)} />
     </div>
   );
 }

@@ -20,6 +20,7 @@ import type {
   McpHandshakeResult,
   McpResource,
   NpmInstallPlan,
+  NpmOutdated,
   ProfileDetail,
   ProfileExportMeta,
   ProfileExportOutcome,
@@ -36,6 +37,7 @@ import type {
   SnapshotMeta,
   SyncHistoryEntry,
   SyncPlan,
+  TemplateRenderResult,
   TextPreview,
   TrashDetail,
   TrashEntry,
@@ -164,6 +166,9 @@ export const api = {
     call<NpmInstallPlan>("npm_remove_plan", { manager, package: pkg }),
   npmRemoveRun: (manager: string, pkg: string) =>
     call<ActionResult>("npm_remove_run", { manager, package: pkg }),
+  npmOutdated: (manager: string) => call<NpmOutdated[]>("npm_outdated", { manager }),
+  templateRender: (template: string, contextJson: string) =>
+    call<TemplateRenderResult>("template_render", { template, contextJson }),
   profileExport: (id: number) => call<ProfileExportOutcome>("profile_export", { id }),
   profileExportList: () => call<ProfileExportMeta[]>("profile_export_list"),
   profileImport: (path: string) => call<ProfileDetail>("profile_import", { path }),

@@ -967,6 +967,16 @@ pub fn python_env_remove(
     crate::runner::apply_env_remove(&state.store, &path)
 }
 
+/// 模板试渲染（file.render 内核原语的 GUI 入口）：
+/// 模板 + JSON 上下文 → 渲染文本；纯函数，不碰磁盘
+#[tauri::command]
+pub fn template_render(
+    template: String,
+    context_json: String,
+) -> crate::template::TemplateRenderResult {
+    crate::template::render_checked(&template, &context_json)
+}
+
 /* --------------------------------------------- npm 全局包安装/卸载（T3） */
 
 #[tauri::command]
@@ -1012,6 +1022,14 @@ pub fn npm_remove_run(
         &manager,
         &package,
     ))
+}
+
+/// 全局包可更新清单（npm outdated -g --json；只读）
+#[tauri::command]
+pub fn npm_outdated(manager: String) -> Result<Vec<crate::runner::NpmOutdated>, String> {
+    let exe = crate::runner::resolve_package_manager(&manager)
+        .ok_or_else(|| format!("未找到 {}（PATH 与兜底目录均未命中）", manager))?;
+    crate::runner::npm_outdated_list(&exe, &manager)
 }
 
 /// 导出档案到数据目录 exports/（自包含 JSON，可拷给他人导入）

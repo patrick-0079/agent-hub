@@ -407,8 +407,7 @@ pub fn apply_npm_remove(
     exe: &Path,
     manager: &str,
     package: &str,
-) -> crate::actions::ActionResult {
-    let mut result = crate::actions::ActionResult {
+) -> crate::actions::ActionResult {    let mut result = crate::actions::ActionResult {
         ok: true,
         title: format!("全局卸载（{}）", manager),
         summary: String::new(),
@@ -453,6 +452,65 @@ pub fn apply_npm_remove(
         }
     }
     result
+}
+
+/* -------------------------------------------------------- 检查更新 */
+
+/// 一个可更新的全局包（npm outdated 的解析结果）
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct NpmOutdated {
+    pub name: String,
+    pub current: String,
+    pub wanted: String,
+    pub latest: String,
+}
+
+/// 解析 `npm outdated -g --json` 的输出：
+/// `{"pkg":{"current":"1.0.0","wanted":"1.1.0","latest":"2.0.0",...}}`，
+/// 全部最新时输出 `{}`（注意此时 npm 退出码为 0，有更新时为 1 但 stdout 仍有 JSON）。
+pub fn parse_npm_outdated(output: &str) -> Vec<NpmOutdated> {
+    let trimmed = output.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+    let value: serde_json::Value = match serde_json::from_str(trimmed) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(), // pnpm 等可能输出表格而非 JSON —— 无更新可报告
+    };
+    let Some(obj) = value.as_object() else {
+        return Vec::new();
+    };
+    let mut out: Vec<NpmOutdated> = obj
+        .iter()
+        .filter(|(_, info)| info.is_object())
+        .map(|(name, info)| {
+            let get = |k: &str| {
+                info.get(k)
+                    .and_then(|x| x.as_str())
+                    .unwrap_or_default()
+                    .to_string()
+            };
+            NpmOutdated {
+                name: name.clone(),
+                current: get("current"),
+                wanted: get("wanted"),
+                latest: get("latest"),
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out
+}
+
+/// 查询全局包可更新清单（npm；pnpm 视其版本对 --json 的支持，无法解析时返回空）
+pub fn npm_outdated_list(exe: &Path, _manager: &str) -> Result<Vec<NpmOutdated>, String> {
+    let output = crate::util::run_capture(
+        exe,
+        &["outdated", "-g", "--json"],
+        Duration::from_secs(90),
+    )?;
+    Ok(parse_npm_outdated(&output))
 }
 
 /* ---------------------------------------------------------------- 删除 */

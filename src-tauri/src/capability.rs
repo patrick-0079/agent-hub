@@ -169,7 +169,7 @@ const CATALOG: &[(&str, Tier, &str, &str, bool, &[&str])] = &[
     ("skill.relink", Tier::Deploy, "重建失效链接", "把失效链接重新指向新的技能库路径", true, &["paths", "args"]),
     ("file.merge_keys", Tier::Deploy, "合并配置键", "结构化文件（JSON）的节点级合并：只增删本软件管理的键，用户手写的其它内容不动；同名非受管条目默认跳过", true, &["paths", "root"]),
     ("file.write_block", Tier::Deploy, "写托管块", "文本文件（TOML 等）的标记托管块：只替换标记之间的内容，标记之外一字不改", true, &["paths", "root"]),
-    ("file.render", Tier::Deploy, "整文件模版渲染", "用模版渲染整个文件（Tera 语法）", false, &["paths"]),
+    ("file.render", Tier::Deploy, "整文件模版渲染", "用 Tera（Jinja2 兼容）模板 + JSON 上下文渲染文本；未定义变量报错不静默置空；M3.5 适配器模版写入的内核原语", true, &["paths"]),
     ("backup.create", Tier::Deploy, "记录可恢复清单", "写入前记录 manifest（操作类型、来源、目标），据此可撤销或恢复", true, &["paths"]),
     ("backup.restore", Tier::Deploy, "依清单恢复", "按 manifest 撤销导入 / 重建被删链接 / 从回收站移回", true, &["paths"]),
     /* ---------------------------------------------------------- T3 变更 */

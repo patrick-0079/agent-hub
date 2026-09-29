@@ -16,7 +16,7 @@ import {
 import { api, describeError } from "../lib/api";
 import { shortenPath } from "../lib/format";
 import { useApp } from "../lib/store";
-import type { ActionResult, NpmInstallPlan, NpmPackage } from "../lib/types";
+import type { ActionResult, NpmInstallPlan, NpmOutdated, NpmPackage } from "../lib/types";
 
 /* ------------------------------------------------------------ 安装弹窗 */
 
@@ -284,13 +284,51 @@ export function NpmPage() {
   const snapshot = useApp((s) => s.snapshot);
   const scan = useApp((s) => s.scan);
   const scanning = useApp((s) => s.scanning);
+  const setBanner = useApp((s) => s.setBanner);
   const [query, setQuery] = useState("");
   const [manager, setManager] = useState("all");
   const [onlyMcp, setOnlyMcp] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
   const [removing, setRemoving] = useState<NpmPackage | null>(null);
+  const [outdated, setOutdated] = useState<Map<string, NpmOutdated> | null>(null);
+  const [outdatedBusy, setOutdatedBusy] = useState(false);
+  const [upgrading, setUpgrading] = useState<string | null>(null);
 
   const packages = snapshot?.npmPackages ?? [];
+
+  const checkUpdates = async () => {
+    setOutdatedBusy(true);
+    try {
+      const list = await api.npmOutdated("npm");
+      setOutdated(new Map(list.map((item) => [item.name, item])));
+    } catch (error) {
+      setBanner(describeError(error));
+    } finally {
+      setOutdatedBusy(false);
+    }
+  };
+
+  const upgrade = async (pkg: NpmOutdated) => {
+    setUpgrading(pkg.name);
+    try {
+      const result = await api.npmInstallRun("npm", [pkg.name]);
+      if (result.ok) {
+        setBanner(`已升级 ${pkg.name}：${result.summary}`);
+        setOutdated((prev) => {
+          const next = prev != null ? new Map(prev) : new Map();
+          next.delete(pkg.name);
+          return next;
+        });
+        void scan();
+      } else {
+        setBanner(result.steps.map((s) => s.message).join("；"));
+      }
+    } catch (error) {
+      setBanner(describeError(error));
+    } finally {
+      setUpgrading(null);
+    }
+  };
 
   const counts = useMemo(
     () => ({
@@ -320,6 +358,16 @@ export function NpmPage() {
             <div className="w-44">
               <SearchInput value={query} onChange={setQuery} placeholder="搜索包名 / 版本…" />
             </div>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              onClick={() => void checkUpdates()}
+              disabled={outdatedBusy}
+              title="npm outdated -g --json：只读检查哪些全局包有新版本"
+            >
+              <Icon name="refresh" className={`h-3.5 w-3.5 ${outdatedBusy ? "animate-spin" : ""}`} />
+              {outdatedBusy ? "检查中…" : "检查更新"}
+            </button>
             <button
               type="button"
               className="btn-primary btn-sm"
@@ -395,47 +443,71 @@ export function NpmPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((pkg) => (
-                  <tr key={`${pkg.manager}-${pkg.name}`} className="hover:bg-ink-800">
-                    <td className="table-cell px-3">
-                      <div className="flex items-center gap-2">
-                        <Icon name="npm" className="h-3.5 w-3.5 shrink-0 text-amber-300" />
-                        <span className="truncate font-mono text-xs text-slate-200">{pkg.name}</span>
-                      </div>
-                    </td>
-                    <td className="table-cell px-3 font-mono text-[11px] text-brand-400">
-                      {pkg.version}
-                    </td>
-                    <td className="table-cell px-3">
-                      <Badge tone={pkg.manager === "pnpm" ? "violet" : "slate"}>{pkg.manager}</Badge>
-                    </td>
-                    <td className="table-cell px-3">
-                      {pkg.mcpCapable ? (
-                        <Badge tone="sky" icon="mcp">
-                          MCP
-                        </Badge>
-                      ) : (
-                        <span className="text-slate-600">—</span>
-                      )}
-                    </td>
-                    <td className="table-cell px-3">
-                      <span className="mono truncate" title={pkg.location ?? ""}>
-                        {pkg.location ? shortenPath(pkg.location, 46) : "—"}
-                      </span>
-                    </td>
-                    <td className="table-cell px-3">
-                      <button
-                        type="button"
-                        className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-950"
-                        onClick={() => setRemoving(pkg)}
-                        title="全局卸载（T3：先看计划）"
-                      >
-                        <Icon name="close" className="h-3.5 w-3.5" />
-                        卸载
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map((pkg) => {
+                  const update = outdated?.get(pkg.name);
+                  return (
+                    <tr key={`${pkg.manager}-${pkg.name}`} className="hover:bg-ink-800">
+                      <td className="table-cell px-3">
+                        <div className="flex items-center gap-2">
+                          <Icon name="npm" className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+                          <span className="truncate font-mono text-xs text-slate-200">{pkg.name}</span>
+                        </div>
+                      </td>
+                      <td className="table-cell px-3 font-mono text-[11px] text-brand-400">
+                        <div className="flex items-center gap-1.5">
+                          {pkg.version}
+                          {update && (
+                            <Badge tone="amber">→ {update.latest}</Badge>
+                          )}
+                        </div>
+                      </td>
+                      <td className="table-cell px-3">
+                        <Badge tone={pkg.manager === "pnpm" ? "violet" : "slate"}>{pkg.manager}</Badge>
+                      </td>
+                      <td className="table-cell px-3">
+                        {pkg.mcpCapable ? (
+                          <Badge tone="sky" icon="mcp">
+                            MCP
+                          </Badge>
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
+                      </td>
+                      <td className="table-cell px-3">
+                        <span className="mono truncate" title={pkg.location ?? ""}>
+                          {pkg.location ? shortenPath(pkg.location, 46) : "—"}
+                        </span>
+                      </td>
+                      <td className="table-cell px-3">
+                        <div className="flex items-center gap-1.5">
+                          {update && (
+                            <button
+                              type="button"
+                              className="btn border border-amber-500/40 btn-sm text-amber-300 hover:bg-amber-950"
+                              onClick={() => void upgrade(update)}
+                              disabled={upgrading === pkg.name}
+                              title={`npm install -g ${pkg.name}（装最新版）`}
+                            >
+                              <Icon
+                                name="refresh"
+                                className={`h-3.5 w-3.5 ${upgrading === pkg.name ? "animate-spin" : ""}`}
+                              />
+                              {upgrading === pkg.name ? "升级中" : "升级"}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-950"
+                            onClick={() => setRemoving(pkg)}
+                            title="全局卸载（T3：先看计划）"
+                          >
+                            <Icon name="close" className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

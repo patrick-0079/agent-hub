@@ -15,6 +15,7 @@ pub mod share;
 pub mod snapdiff;
 pub mod store;
 pub mod sync;
+pub mod template;
 pub mod util;
 pub mod vault;
 pub mod yaml;
@@ -272,6 +273,7 @@ fn spawn_mock_server(
                         if e.kind() == std::io::ErrorKind::WouldBlock
                             || e.kind() == std::io::ErrorKind::TimedOut =>
                     {
+                        std::thread::sleep(std::time::Duration::from_millis(15));
                         continue;
                     }
                     Err(_) => break,
@@ -298,6 +300,20 @@ fn spawn_mock_server(
                 body
             );
             let _ = stream.write_all(response.as_bytes());
+            // POST 请求体可能尚未读完：不排干就关连接会触发 RST，
+            // 客户端读响应时偶发「连接被重置」——先半关闭写端再排干输入
+            let _ = stream.shutdown(std::net::Shutdown::Write);
+            let mut drain = [0u8; 4096];
+            let drain_deadline = std::time::Instant::now() + std::time::Duration::from_millis(300);
+            loop {
+                if std::time::Instant::now() >= drain_deadline {
+                    break;
+                }
+                match stream.read(&mut drain) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {}
+                }
+            }
         }
     });
     format!("http://127.0.0.1:{}", port)
@@ -2303,6 +2319,7 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
                                 if e.kind() == std::io::ErrorKind::WouldBlock
                                     || e.kind() == std::io::ErrorKind::TimedOut =>
                             {
+                                std::thread::sleep(std::time::Duration::from_millis(15));
                                 continue;
                             }
                             Err(_) => break,
@@ -2326,6 +2343,20 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
                         )
                     };
                     let _ = stream.write_all(response.as_bytes());
+                    // 排干未读的请求体，避免关连接触发 RST（同 spawn_mock_server）
+                    let _ = stream.shutdown(std::net::Shutdown::Write);
+                    let mut drain = [0u8; 4096];
+                    let drain_deadline =
+                        std::time::Instant::now() + std::time::Duration::from_millis(300);
+                    loop {
+                        if std::time::Instant::now() >= drain_deadline {
+                            break;
+                        }
+                        match stream.read(&mut drain) {
+                            Ok(0) | Err(_) => break,
+                            Ok(_) => {}
+                        }
+                    }
                 }
             });
             format!("http://127.0.0.1:{}", port)
@@ -2816,6 +2847,93 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
         );
     }
 
+    println!("[31] file.render：Tera 模板渲染（file.render 内核原语）");
+    {
+        use crate::template::{render, render_checked};
+
+        // 1) 变量与嵌套路径
+        let out = render(
+            "Hello {{ name }} — {{ provider.base_url }}",
+            &serde_json::json!({ "name": "AgentHub", "provider": { "base_url": "https://example.com/v1" } }),
+        )
+        .unwrap();
+        check!(
+            out == "Hello AgentHub — https://example.com/v1",
+            "变量与嵌套路径：{}",
+            out
+        );
+
+        // 2) 循环与过滤器
+        let out = render(
+            "{% for m in models %}{{ m | upper }};{% endfor %}",
+            &serde_json::json!({ "models": ["a", "b"] }),
+        )
+        .unwrap();
+        check!(out == "A;B;", "循环 + upper 过滤器：{}", out);
+
+        // 3) 未定义变量 → 报错（宁可失败不静默置空）
+        let err = render("{{ missing }}", &serde_json::json!({})).unwrap_err();
+        check!(err.contains("渲染失败"), "未定义变量报错：{}", err);
+
+        // 4) 语法错误 → 报错
+        let err = render("{% if %}", &serde_json::json!({})).unwrap_err();
+        check!(err.contains("语法"), "语法错误报错：{}", err);
+
+        // 5) render_checked：非法上下文 JSON → 结构化错误
+        let r = render_checked("{{ a }}", "不是 json");
+        check!(!r.ok && r.error.contains("JSON"), "非法上下文 → 结构化错误：{}", r.error);
+
+        // 6) 能力目录：file.render 已实现 —— 31 项全部落地
+        check!(
+            crate::capability::catalog()
+                .iter()
+                .find(|c| c.id == "file.render")
+                .map(|c| c.implemented)
+                .unwrap_or(false),
+            "file.render 已标记实现（能力目录 31/31）"
+        );
+    }
+
+    println!("[32] npm 检查更新（outdated 解析 + mock 全链路）");
+    {
+        use crate::runner::{parse_npm_outdated, NpmOutdated};
+
+        // 1) 解析器：标准 npm 输出
+        let list = parse_npm_outdated(
+            r#"{"some-tool":{"current":"1.0.0","wanted":"1.1.0","latest":"2.0.0","location":"global"},"other":{"current":"0.9.0","wanted":"0.9.0","latest":"0.9.0"}}"#,
+        );
+        check!(
+            list.len() == 2
+                && list[0].name == "other"  // 按名称排序
+                && list.iter().any(|x| x.name == "some-tool" && x.latest == "2.0.0"),
+            "解析 outdated JSON（{} 条，按名排序）",
+            list.len()
+        );
+
+        // 2) 全部最新（{}）与非 JSON 输出（pnpm 表格）→ 空清单不崩溃
+        check!(parse_npm_outdated("{}").is_empty(), "无更新 → 空清单");
+        check!(
+            parse_npm_outdated("Package Current Wanted Latest\nsome 1.0 1.1 2.0").is_empty(),
+            "表格输出（pnpm）→ 按不支持处理，返回空"
+        );
+        let _ = NpmOutdated::default();
+
+        // 3) mock 包管理器全链路：echo JSON → 解析出 2 条
+        let mock = base.join("mock-outdated.cmd");
+        std::fs::write(
+            &mock,
+            "@echo off\r\necho {\"mock-a\":{\"current\":\"1.0.0\",\"wanted\":\"1.0.0\",\"latest\":\"1.2.0\"},\"mock-b\":{\"current\":\"0.1.0\",\"wanted\":\"0.1.0\",\"latest\":\"0.2.0\"}}\r\n",
+        )
+        .unwrap();
+        let list = crate::runner::npm_outdated_list(&mock, "npm").unwrap();
+        check!(
+            list.len() == 2 && list.iter().all(|x| !x.latest.is_empty()),
+            "mock outdated 全链路：{} 条可更新（{:?}）",
+            list.len(),
+            list.iter().map(|x| x.name.clone()).collect::<Vec<_>>()
+        );
+    }
+
     println!("\n=== 结果：{} 项通过，{} 项失败 ===", pass, fail);
     println!("沙箱残留（可手动删除）: {}", base.display());
     if fail > 0 {
@@ -2941,6 +3059,8 @@ pub fn run() {
             commands::npm_install_run,
             commands::npm_remove_plan,
             commands::npm_remove_run,
+            commands::npm_outdated,
+            commands::template_render,
             commands::profile_export,
             commands::profile_export_list,
             commands::profile_import,
