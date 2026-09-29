@@ -28,6 +28,11 @@ jobs:
       - name: Build frontend (tsc strict + vite)
         run: pnpm build
 
+      - name: Install uv（供 Python 环境创建自检使用）
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 

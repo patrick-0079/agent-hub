@@ -13,6 +13,7 @@ import type {
   DefinitionsView,
   DirEntry,
   DiscoveredSkill,
+  EnvCreatePlan,
   ExecutableInfo,
   HostInfo,
   ManifestInfo,
@@ -27,6 +28,7 @@ import type {
   ProviderBalanceResult,
   ProviderResource,
   ProviderTestResult,
+  PythonEnv,
   ScanSnapshot,
   SkillEnv,
   SnapshotDiff,
@@ -147,6 +149,12 @@ export const api = {
   snapshotDiff: (idA: number, idB: number) =>
     call<SnapshotDiff>("snapshot_diff", { idA, idB }),
   syncHistory: (limit = 50) => call<SyncHistoryEntry[]>("sync_history", { limit }),
+  pythonEnvCreatePlan: (path: string, python: string | null) =>
+    call<EnvCreatePlan>("python_env_create_plan", { path, python }),
+  pythonEnvCreateRun: (path: string, python: string | null) =>
+    call<ActionResult>("python_env_create_run", { path, python }),
+  pythonEnvManaged: () => call<PythonEnv[]>("python_env_managed"),
+  pythonEnvRemove: (path: string) => call<ActionResult>("python_env_remove", { path }),
   profileExport: (id: number) => call<ProfileExportOutcome>("profile_export", { id }),
   profileExportList: () => call<ProfileExportMeta[]>("profile_export_list"),
   profileImport: (path: string) => call<ProfileDetail>("profile_import", { path }),

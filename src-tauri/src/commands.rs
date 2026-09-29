@@ -933,6 +933,40 @@ pub fn sync_history(
     state.store.sync_history_list(limit.unwrap_or(50))
 }
 
+/* ------------------------------------------- Python 环境创建/删除（T3） */
+
+#[tauri::command]
+pub fn python_env_create_plan(
+    path: String,
+    python: Option<String>,
+) -> crate::runner::EnvCreatePlan {
+    crate::runner::plan_env_create(&path, python.as_deref())
+}
+
+#[tauri::command]
+pub fn python_env_create_run(
+    state: State<'_, AppState>,
+    path: String,
+    python: Option<String>,
+) -> crate::actions::ActionResult {
+    crate::runner::apply_env_create(&state.store, &path, python.as_deref())
+}
+
+/// 受管 Python 环境清单（与扫描结果在界面上合并）
+#[tauri::command]
+pub fn python_env_managed(state: State<'_, AppState>) -> Vec<crate::model::PythonEnv> {
+    state.store.python_env_managed()
+}
+
+/// 删除受管环境：目录整体移入回收站（可恢复）并清除记录
+#[tauri::command]
+pub fn python_env_remove(
+    state: State<'_, AppState>,
+    path: String,
+) -> crate::actions::ActionResult {
+    crate::runner::apply_env_remove(&state.store, &path)
+}
+
 /// 导出档案到数据目录 exports/（自包含 JSON，可拷给他人导入）
 #[tauri::command]
 pub fn profile_export(

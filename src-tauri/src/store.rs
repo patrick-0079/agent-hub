@@ -772,8 +772,7 @@ impl Store {
     }
 
     /// 同步审计时间线（最新在前）
-    pub fn sync_history_list(&self, limit: usize) -> Vec<crate::model::SyncHistoryEntry> {
-        let conn = match self.conn.lock() {
+    pub fn sync_history_list(&self, limit: usize) -> Vec<crate::model::SyncHistoryEntry> {        let conn = match self.conn.lock() {
             Ok(c) => c,
             Err(_) => return Vec::new(),
         };
@@ -809,6 +808,80 @@ impl Store {
             Ok(iter) => iter.flatten().collect(),
             Err(_) => Vec::new(),
         }
+    }
+
+    /* -------------------------------------------------- 受管 Python 环境 */
+
+    /// 记录一个受管（由本软件创建）的 Python 环境；已存在则更新版本
+    pub fn python_env_upsert(
+        &self,
+        name: &str,
+        manager: &str,
+        path: &str,
+        py_version: Option<&str>,
+    ) -> Result<()> {
+        let conn = self.conn()?;
+        let existing: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM python_env WHERE path = ?1",
+                params![path],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if let Some(id) = existing {
+            conn.execute(
+                "UPDATE python_env SET name = ?1, manager = ?2, py_version = ?3, managed = 1 WHERE id = ?4",
+                params![name, manager, py_version, id],
+            )?;
+        } else {
+            conn.execute(
+                "INSERT INTO python_env (name, manager, path, py_version, managed, deps_lock)
+                 VALUES (?1, ?2, ?3, ?4, 1, '{}')",
+                params![name, manager, path, py_version],
+            )?;
+        }
+        Ok(())
+    }
+
+    /// 受管环境清单（界面与扫描结果合并展示）
+    pub fn python_env_managed(&self) -> Vec<crate::model::PythonEnv> {
+        let conn = match self.conn.lock() {
+            Ok(c) => c,
+            Err(_) => return Vec::new(),
+        };
+        let mut stmt = match conn.prepare(
+            "SELECT name, manager, path, py_version FROM python_env
+             WHERE managed = 1 ORDER BY path",
+        ) {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
+        };
+        let rows = stmt.query_map([], |row| {
+            let path: String = row.get(2)?;
+            Ok(crate::model::PythonEnv {
+                id: format!("managed::{}", path),
+                name: row.get(0)?,
+                manager: row.get(1)?,
+                python_version: row.get(3)?,
+                package_count: None,
+                active: std::env::var("VIRTUAL_ENV")
+                    .map(|v| v.eq_ignore_ascii_case(&path))
+                    .unwrap_or(false),
+                detail: Some("AgentHub 受管（创建于本软件）".to_string()),
+                path,
+            })
+        });
+        match rows {
+            Ok(iter) => iter.flatten().collect(),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// 清除受管记录（环境删除后调用）
+    pub fn python_env_delete(&self, path: &str) -> Result<()> {
+        let conn = self.conn()?;
+        conn.execute("DELETE FROM python_env WHERE path = ?1", params![path])?;
+        Ok(())
     }
 
     /// 取连接锁。PoisonError 不能直接 `?`（MutexGuard 非 Send），这里显式转换。

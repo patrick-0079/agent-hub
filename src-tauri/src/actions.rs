@@ -590,6 +590,24 @@ fn move_link(from: &Path, to: &Path) -> Result<(), String> {
     remove_link(from)
 }
 
+/// 公开的单对象删除入口（供 runner 等模块复用）：
+/// 链接或目录整体移入回收站，返回 (条目名, 清单路径, 清单条目)。
+pub fn move_path_to_trash(
+    path: &Path,
+    op: &str,
+    summary: &str,
+) -> Result<(String, String, Vec<ManifestEntry>), String> {
+    let kind = if is_link(path) { "link" } else { "dir" };
+    move_to_trash(
+        vec![TrashItem {
+            path: path.to_path_buf(),
+            kind: kind.to_string(),
+        }],
+        op,
+        summary,
+    )
+}
+
 /// 把若干对象移入**同一个**回收站条目（批量删除只产生一条记录，便于整体恢复）。
 ///
 /// 返回 (条目名, 清单路径, 清单条目)

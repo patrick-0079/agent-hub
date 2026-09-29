@@ -9,6 +9,7 @@ pub mod merge;
 pub mod model;
 pub mod probe;
 pub mod profile;
+pub mod runner;
 pub mod scan;
 pub mod share;
 pub mod snapdiff;
@@ -185,17 +186,28 @@ fn spawn_mock_server(
             let Ok((mut stream, _)) = listener.accept() else {
                 break;
             };
-            let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(600)));
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(500)));
             let mut req = Vec::new();
             let mut chunk = [0u8; 2048];
+            // 读到请求头结束为止；超时不算失败，2 秒总截止（负载下防截断）
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
             loop {
+                if req.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+                if std::time::Instant::now() >= deadline {
+                    break;
+                }
                 match stream.read(&mut chunk) {
                     Ok(0) => break,
                     Ok(n) => {
                         req.extend_from_slice(&chunk[..n]);
-                        if req.windows(4).any(|w| w == b"\r\n\r\n") {
-                            break;
-                        }
+                    }
+                    Err(e)
+                        if e.kind() == std::io::ErrorKind::WouldBlock
+                            || e.kind() == std::io::ErrorKind::TimedOut =>
+                    {
+                        continue;
                     }
                     Err(_) => break,
                 }
@@ -2205,17 +2217,28 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
                     let Ok((mut stream, _)) = listener.accept() else {
                         break;
                     };
-                    let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(600)));
+                    let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(500)));
                     let mut req = Vec::new();
                     let mut chunk = [0u8; 4096];
+                    // 读到请求头结束为止；超时不算失败，2 秒总截止（负载下防截断）
+                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
                     loop {
+                        if req.windows(4).any(|w| w == b"\r\n\r\n") {
+                            break;
+                        }
+                        if std::time::Instant::now() >= deadline {
+                            break;
+                        }
                         match stream.read(&mut chunk) {
                             Ok(0) => break,
                             Ok(n) => {
                                 req.extend_from_slice(&chunk[..n]);
-                                if req.windows(4).any(|w| w == b"\r\n\r\n") {
-                                    break;
-                                }
+                            }
+                            Err(e)
+                                if e.kind() == std::io::ErrorKind::WouldBlock
+                                    || e.kind() == std::io::ErrorKind::TimedOut =>
+                            {
+                                continue;
                             }
                             Err(_) => break,
                         }
@@ -2379,6 +2402,73 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
         let _ = std::fs::remove_file(base.join("selftest-history.db"));
     }
 
+    println!("[27] Python 环境创建与删除（uv venv + 回收站）");
+    {
+        use crate::runner;
+        let uv = runner::uv_path();
+        match uv {
+            Some(_) => {
+                let target = base.join("uv-env-created");
+                let target_str = target.to_string_lossy().to_string();
+
+                // 计划（T3 先看命令）
+                let plan = runner::plan_env_create(&target_str, Some("3.12"));
+                check!(
+                    plan.uv_found
+                        && plan.tier_code == "T3"
+                        && !plan.target_exists
+                        && plan.args[0] == "venv"
+                        && plan.args.contains(&"--python".to_string()),
+                    "计划：{} {:?}（{}）",
+                    plan.command,
+                    plan.args,
+                    plan.python_note
+                );
+
+                // 创建 + 受管记录
+                let store =
+                    crate::store::Store::open(&base.join("selftest-pyenv.db")).unwrap();
+                let r = runner::apply_env_create(&store, &target_str, None);
+                check!(r.ok, "创建成功：{}", r.summary);
+                check!(target.join("pyvenv.cfg").is_file(), "pyvenv.cfg 已生成");
+                let managed = store.python_env_managed();
+                check!(
+                    managed.len() == 1
+                        && managed[0].path.eq_ignore_ascii_case(&target_str)
+                        && managed[0].python_version.is_some(),
+                    "受管记录落库（{} 条，版本 {:?}）",
+                    managed.len(),
+                    managed[0].python_version
+                );
+                // 重复 upsert 不产生重复行
+                store
+                    .python_env_upsert("uv-env-created", "uv", &target_str, None)
+                    .unwrap();
+                check!(
+                    store.python_env_managed().len() == 1,
+                    "重复登记不产生重复记录"
+                );
+
+                // 删除 → 回收站（可恢复），受管记录清除
+                let before = crate::actions::trash_stats();
+                let r = runner::apply_env_remove(&store, &target_str);
+                check!(r.ok && !target.exists(), "删除入回收站：{}", r.summary);
+                let after = crate::actions::trash_stats();
+                check!(
+                    after.items == before.items + 1,
+                    "回收站对象 +1（{} → {}）",
+                    before.items,
+                    after.items
+                );
+                check!(store.python_env_managed().is_empty(), "受管记录已清除");
+                let _ = std::fs::remove_file(base.join("selftest-pyenv.db"));
+            }
+            None => {
+                check!(false, "未找到 uv，跳过环境创建测试（CI 已预装 uv）");
+            }
+        }
+    }
+
     println!("\n=== 结果：{} 项通过，{} 项失败 ===", pass, fail);
     println!("沙箱残留（可手动删除）: {}", base.display());
     if fail > 0 {
@@ -2496,6 +2586,10 @@ pub fn run() {
             commands::provider_balance_query,
             commands::snapshot_diff,
             commands::sync_history,
+            commands::python_env_create_plan,
+            commands::python_env_create_run,
+            commands::python_env_managed,
+            commands::python_env_remove,
             commands::profile_export,
             commands::profile_export_list,
             commands::profile_import,

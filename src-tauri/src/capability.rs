@@ -175,8 +175,8 @@ const CATALOG: &[(&str, Tier, &str, &str, bool, &[&str])] = &[
     /* ---------------------------------------------------------- T3 变更 */
     ("pkg.npm.install", Tier::Mutate, "安装 npm 全局包", "执行全局包安装（流式输出到任务控制台）", false, &["args"]),
     ("pkg.npm.remove", Tier::Mutate, "卸载 npm 全局包", "移除全局包", false, &["args"]),
-    ("py.env.create", Tier::Mutate, "创建 Python 环境", "通过 uv / conda 创建环境并锁定依赖", false, &["args", "paths"]),
-    ("py.env.remove", Tier::Mutate, "删除 Python 环境", "删除已有环境（不可恢复，需二次确认）", false, &["paths"]),
+    ("py.env.create", Tier::Mutate, "创建 Python 环境", "通过 uv venv 创建虚拟环境（读取 pyvenv.cfg 版本并标记为受管）；conda 创建暂未启用", true, &["args", "paths"]),
+    ("py.env.remove", Tier::Mutate, "删除 Python 环境", "受管环境整体移入回收站（可恢复）并清除受管记录", true, &["paths"]),
     ("proc.spawn.probe", Tier::Mutate, "MCP 握手探测", "实际启动 MCP 进程（stdio）或发起 HTTP 请求，完成 initialize 握手并清点工具数；进程结束即恢复原状", true, &["args"]),
     ("net.provider.probe", Tier::Mutate, "供应商连通性测试", "对供应商端点发起一次最小只读请求（GET models）：返回延迟、模型数与错误原因；Key 只在内存中使用，不落日志不落库", true, &["args"]),
     ("net.provider.balance", Tier::Mutate, "供应商余额查询", "查询供应商账户余额（当前支持 DeepSeek 的 /user/balance）：返回币种、总余额、赠送与充值拆分；Key 只在内存中使用", true, &["args"]),

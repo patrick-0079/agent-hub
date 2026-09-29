@@ -521,6 +521,20 @@ export interface SyncHistoryEntry {
   createdAt: string;
 }
 
+/* ------------------------------------------------- Python 环境创建（M3） */
+
+export interface EnvCreatePlan {
+  tier: string;
+  tierCode: string;
+  command: string;
+  args: string[];
+  target: string;
+  targetExists: boolean;
+  pythonNote: string;
+  uvFound: boolean;
+  message: string;
+}
+
 /* ------------------------------------------------- 档案导出/导入（M1） */
 
 export interface ProfileExportMeta {
