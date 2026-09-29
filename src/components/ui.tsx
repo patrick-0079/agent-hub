@@ -295,7 +295,7 @@ export function Modal({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-ink-950/85" onClick={onClose} />
+      <div className="overlay absolute inset-0" onClick={onClose} />
       <div
         className={`relative flex max-h-[88vh] w-full ${width} animate-fade-in flex-col overflow-hidden rounded-md border border-ink-700 bg-ink-900`}
       >
@@ -343,7 +343,7 @@ export function Drawer({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
-      <div className="absolute inset-0 bg-ink-950/80" onClick={onClose} />
+      <div className="overlay absolute inset-0" onClick={onClose} />
       <div
         className={`relative flex h-full w-full ${width} animate-fade-in flex-col border-l border-ink-700 bg-ink-900`}
       >

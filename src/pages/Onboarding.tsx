@@ -83,7 +83,7 @@ export function Onboarding() {
                     i < step
                       ? "border-brand-500 bg-brand-900 text-brand-400"
                       : i === step
-                        ? "border-brand-500 bg-brand-500 text-ink-950"
+                        ? "border-brand-500 bg-brand-500 text-ink-950 on-accent"
                         : "border-ink-600 text-slate-500"
                   }`}
                 >

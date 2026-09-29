@@ -2,6 +2,142 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------- 主题 */
+
+/* 深色（默认）：全部颜色经 rgb 三元组变量定义，html.light 重定义即切换 */
+:root {
+  --ink-950: 10 11 13;      /* 应用底 */
+  --ink-900: 16 18 20;      /* 侧边栏 / 内嵌面板 */
+  --ink-850: 21 23 26;      /* 卡片 */
+  --ink-800: 28 31 35;      /* hover / 抬升 */
+  --ink-700: 38 42 47;      /* 卡片边框 */
+  --ink-600: 52 57 65;      /* 输入边框 */
+  --ink-500: 69 76 85;      /* 空闲 */
+
+  --slate-50: 248 250 252;
+  --slate-100: 241 245 249;
+  --slate-200: 226 232 240;
+  --slate-300: 203 213 225;
+  --slate-400: 148 163 184;
+  --slate-500: 100 116 139;
+  --slate-600: 71 85 105;
+  --slate-700: 51 65 85;
+
+  --brand-300: 127 212 199;
+  --brand-400: 77 179 166;
+  --brand-500: 47 157 144;
+  --brand-800: 20 65 58;
+  --brand-900: 13 39 35;
+
+  --accent-400: 168 157 208;
+  --accent-500: 138 127 190;
+  --accent-800: 43 39 69;
+  --accent-900: 29 26 48;
+
+  --amber-200: 254 240 201;
+  --amber-300: 252 221 144;
+  --amber-400: 251 191 36;
+  --amber-500: 245 165 25;
+  --amber-700: 180 83 9;
+  --amber-800: 146 72 16;
+  --amber-900: 120 53 15;
+  --amber-950: 69 26 3;
+
+  --rose-100: 255 228 230;
+  --rose-200: 254 205 211;
+  --rose-300: 253 164 175;
+  --rose-400: 251 113 133;
+  --rose-500: 244 63 94;
+  --rose-600: 225 29 72;
+  --rose-800: 159 18 57;
+  --rose-950: 76 5 25;
+
+  --sky-300: 125 211 252;
+  --sky-500: 14 165 233;
+  --sky-800: 7 89 133;
+  --sky-950: 8 47 73;
+
+  --teal-300: 94 234 212;
+  --teal-500: 20 184 166;
+  --teal-900: 19 78 74;
+
+  --violet-400: 167 139 250;
+
+  --overlay: 10 11 13;
+  --app-bg: #0a0b0d;
+  --scrollbar-track: #0a0b0d;
+  --scrollbar-thumb: #343941;
+  --scrollbar-thumb-hover: #454c55;
+  --on-accent: 10 11 13;
+}
+
+/* 浅色：表面反转（950 最浅为底），文字 slate 反转（100 变最深），状态色取深档保证对比 */
+html.light {
+  --ink-950: 246 247 249;   /* 应用底 */
+  --ink-900: 238 240 243;   /* 侧边栏 / 内嵌面板 */
+  --ink-850: 255 255 255;   /* 卡片 */
+  --ink-800: 242 244 246;   /* hover */
+  --ink-700: 226 229 234;   /* 卡片边框 */
+  --ink-600: 205 210 218;   /* 输入边框 */
+  --ink-500: 154 163 175;   /* 空闲 */
+
+  --slate-50: 15 23 42;     /* 强标题 */
+  --slate-100: 15 23 42;
+  --slate-200: 30 41 59;
+  --slate-300: 55 65 81;
+  --slate-400: 75 85 99;
+  --slate-500: 107 114 128;
+  --slate-600: 148 163 184;
+  --slate-700: 203 213 225;
+
+  --brand-300: 63 184 170;
+  --brand-400: 22 134 122;
+  --brand-500: 18 122 111;
+  --brand-800: 184 227 221;
+  --brand-900: 223 240 237;
+
+  --accent-400: 124 108 192;
+  --accent-500: 124 108 192;
+  --accent-800: 216 210 236;
+  --accent-900: 235 231 247;
+
+  --amber-200: 133 77 14;
+  --amber-300: 146 90 20;
+  --amber-400: 167 94 19;
+  --amber-500: 180 83 9;
+  --amber-700: 180 83 9;
+  --amber-800: 243 216 164;
+  --amber-900: 253 235 199;
+  --amber-950: 253 243 216;
+
+  --rose-100: 159 18 57;
+  --rose-200: 175 25 67;
+  --rose-300: 190 24 74;
+  --rose-400: 206 35 87;
+  --rose-500: 225 29 72;
+  --rose-600: 225 29 72;
+  --rose-800: 245 198 201;
+  --rose-950: 253 234 234;
+
+  --sky-300: 3 105 161;
+  --sky-500: 2 132 199;
+  --sky-800: 186 225 245;
+  --sky-950: 227 242 251;
+
+  --teal-300: 15 118 110;
+  --teal-500: 20 184 166;
+  --teal-900: 204 251 241;
+
+  --violet-400: 124 58 237;
+
+  --overlay: 51 65 85;
+  --app-bg: #f6f7f9;
+  --scrollbar-track: #f6f7f9;
+  --scrollbar-thumb: #c5cbd4;
+  --scrollbar-thumb-hover: #a8b0bb;
+  --on-accent: 255 255 255;
+}
+
 @layer base {
   html,
   body,
@@ -11,8 +147,8 @@
 
   body {
     overflow: hidden;
-    background: #0a0b0d;
-    color: #cbd5e1;
+    background: var(--app-bg);
+    color: rgb(var(--slate-300));
   }
 
   ::-webkit-scrollbar {
@@ -20,15 +156,15 @@
     height: 10px;
   }
   ::-webkit-scrollbar-track {
-    background: #0a0b0d;
+    background: var(--scrollbar-track);
   }
   ::-webkit-scrollbar-thumb {
-    background: #343941;
-    border: 2px solid #0a0b0d;
+    background: var(--scrollbar-thumb);
+    border: 2px solid var(--scrollbar-track);
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #454c55;
+    background: var(--scrollbar-thumb-hover);
     background-clip: content-box;
   }
 }
@@ -45,7 +181,8 @@
     @apply inline-flex select-none items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
   }
   .btn-primary {
-    @apply btn bg-brand-500 text-ink-950 hover:bg-brand-400;
+    @apply btn bg-brand-500 hover:bg-brand-400;
+    color: rgb(var(--on-accent));
   }
   .btn-ghost {
     @apply btn border border-ink-600 bg-transparent text-slate-300 hover:bg-ink-800 hover:text-slate-100;
@@ -70,5 +207,13 @@
   }
   .mono {
     @apply font-mono text-xs text-slate-400;
+  }
+  /* 弹窗遮罩：深浅两套下都保持「压暗」语义 */
+  .overlay {
+    background: rgb(var(--overlay) / 0.85);
+  }
+  /* 强调色背景上的文字（主按钮 / 步骤指示） */
+  .on-accent {
+    color: rgb(var(--on-accent)) !important;
   }
 }

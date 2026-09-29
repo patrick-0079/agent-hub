@@ -4,29 +4,73 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 中性灰阶（扁平、无色偏）
+        // 全部经 CSS 变量映射（rgb 三元组 + <alpha-value>）：深色为默认值，
+        // html.light 下重定义同名变量即完成浅色主题，类名零改动。
         ink: {
-          950: "#0a0b0d",
-          900: "#101214",
-          850: "#15171a",
-          800: "#1c1f23",
-          700: "#262a2f",
-          600: "#343941",
-          500: "#454c55",
+          950: "rgb(var(--ink-950) / <alpha-value>)",
+          900: "rgb(var(--ink-900) / <alpha-value>)",
+          850: "rgb(var(--ink-850) / <alpha-value>)",
+          800: "rgb(var(--ink-800) / <alpha-value>)",
+          700: "rgb(var(--ink-700) / <alpha-value>)",
+          600: "rgb(var(--ink-600) / <alpha-value>)",
+          500: "rgb(var(--ink-500) / <alpha-value>)",
         },
-        // 单一强调色（低饱和青）
         brand: {
-          900: "#0d2723",
-          800: "#14413a",
-          500: "#2f9d90",
-          400: "#4db3a6",
+          300: "rgb(var(--brand-300) / <alpha-value>)",
+          400: "rgb(var(--brand-400) / <alpha-value>)",
+          500: "rgb(var(--brand-500) / <alpha-value>)",
+          800: "rgb(var(--brand-800) / <alpha-value>)",
+          900: "rgb(var(--brand-900) / <alpha-value>)",
         },
-        // 次强调（低饱和紫，仅用于“规划/待实现”语义）
         accent: {
-          900: "#1d1a30",
-          800: "#2b2745",
-          500: "#8a7fbe",
-          400: "#a89dd0",
+          400: "rgb(var(--accent-400) / <alpha-value>)",
+          500: "rgb(var(--accent-500) / <alpha-value>)",
+          800: "rgb(var(--accent-800) / <alpha-value>)",
+          900: "rgb(var(--accent-900) / <alpha-value>)",
+        },
+        slate: {
+          50: "rgb(var(--slate-50) / <alpha-value>)",
+          100: "rgb(var(--slate-100) / <alpha-value>)",
+          200: "rgb(var(--slate-200) / <alpha-value>)",
+          300: "rgb(var(--slate-300) / <alpha-value>)",
+          400: "rgb(var(--slate-400) / <alpha-value>)",
+          500: "rgb(var(--slate-500) / <alpha-value>)",
+          600: "rgb(var(--slate-600) / <alpha-value>)",
+          700: "rgb(var(--slate-700) / <alpha-value>)",
+        },
+        amber: {
+          200: "rgb(var(--amber-200) / <alpha-value>)",
+          300: "rgb(var(--amber-300) / <alpha-value>)",
+          400: "rgb(var(--amber-400) / <alpha-value>)",
+          500: "rgb(var(--amber-500) / <alpha-value>)",
+          700: "rgb(var(--amber-700) / <alpha-value>)",
+          800: "rgb(var(--amber-800) / <alpha-value>)",
+          900: "rgb(var(--amber-900) / <alpha-value>)",
+          950: "rgb(var(--amber-950) / <alpha-value>)",
+        },
+        rose: {
+          100: "rgb(var(--rose-100) / <alpha-value>)",
+          200: "rgb(var(--rose-200) / <alpha-value>)",
+          300: "rgb(var(--rose-300) / <alpha-value>)",
+          400: "rgb(var(--rose-400) / <alpha-value>)",
+          500: "rgb(var(--rose-500) / <alpha-value>)",
+          600: "rgb(var(--rose-600) / <alpha-value>)",
+          800: "rgb(var(--rose-800) / <alpha-value>)",
+          950: "rgb(var(--rose-950) / <alpha-value>)",
+        },
+        sky: {
+          300: "rgb(var(--sky-300) / <alpha-value>)",
+          500: "rgb(var(--sky-500) / <alpha-value>)",
+          800: "rgb(var(--sky-800) / <alpha-value>)",
+          950: "rgb(var(--sky-950) / <alpha-value>)",
+        },
+        teal: {
+          300: "rgb(var(--teal-300) / <alpha-value>)",
+          500: "rgb(var(--teal-500) / <alpha-value>)",
+          900: "rgb(var(--teal-900) / <alpha-value>)",
+        },
+        violet: {
+          400: "rgb(var(--violet-400) / <alpha-value>)",
         },
       },
       fontFamily: {

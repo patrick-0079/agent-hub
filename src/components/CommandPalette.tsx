@@ -120,7 +120,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[12vh]">
-      <div className="absolute inset-0 bg-ink-950/85" onClick={onClose} />
+      <div className="overlay absolute inset-0" onClick={onClose} />
       <div className="relative flex w-full max-w-xl animate-fade-in flex-col overflow-hidden rounded-md border border-ink-700 bg-ink-900">
         <div className="flex items-center gap-2 border-b border-ink-700 px-3 py-2.5">
           <Icon name="search" className="h-4 w-4 shrink-0 text-slate-500" />

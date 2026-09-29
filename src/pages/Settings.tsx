@@ -482,8 +482,13 @@ export function Settings() {
           </SectionCard>
 
           {/* 外观 */}
-          <SectionCard title="外观与语言" subtitle="主题与界面语言" action={<Badge tone="slate">M4</Badge>}>
-            <Toggle checked disabled onChange={() => {}} label="深色主题" hint="浅色主题计划在 M4 提供" />
+          <SectionCard title="外观与语言" subtitle="主题与界面语言">
+            <Toggle
+              checked={settings.theme !== "light"}
+              onChange={(next) => void patchSettings({ theme: next ? "dark" : "light" })}
+              label="深色主题"
+              hint="关闭切换为浅色主题（扁平双色板，即时生效）"
+            />
             <div className="border-t border-ink-800">
               <Toggle
                 checked={settings.language === "zh-CN"}

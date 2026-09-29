@@ -28,6 +28,13 @@ interface AppState {
 
 let initStarted = false;
 
+/** 主题：在 <html> 上挂/摘 light 类，变量组即时切换 */
+function applyTheme(theme: string | undefined) {
+  if (typeof document === "undefined") return;
+  const light = theme === "light";
+  document.documentElement.classList.toggle("light", light);
+}
+
 export const useApp = create<AppState>((set, get) => ({
   route: "dashboard",
   ready: false,
@@ -52,6 +59,7 @@ export const useApp = create<AppState>((set, get) => ({
         api.lastSnapshot(),
       ]);
       set({ host, settings, snapshot, ready: true });
+      applyTheme(settings.theme);
       if (settings.autoScanOnStart && !snapshot) {
         void get().scan();
       }
@@ -78,6 +86,7 @@ export const useApp = create<AppState>((set, get) => ({
     if (!current) return;
     const next = { ...current, ...patch };
     set({ settings: next });
+    if (patch.theme !== undefined) applyTheme(patch.theme);
     try {
       const saved = await api.saveSettings(next);
       set({ settings: saved });
