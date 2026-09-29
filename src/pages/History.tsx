@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Icon } from "../components/Icon";
-import { Badge, Card, Empty, SectionCard } from "../components/ui";
+import { Badge, Card, Empty, SectionCard, StatusDot } from "../components/ui";
 import { ResultView } from "../components/SkillActions";
 import { api, describeError } from "../lib/api";
 import { formatBytes, formatDuration, formatTime, relativeTime, shortenPath } from "../lib/format";
@@ -14,6 +14,7 @@ import type {
   ManifestInfo,
   SnapshotDiff,
   SnapshotMeta,
+  SyncHistoryEntry,
   TrashStats,
 } from "../lib/types";
 
@@ -34,6 +35,7 @@ export function HistoryPage() {
   const [items, setItems] = useState<SnapshotMeta[]>([]);
   const [manifests, setManifests] = useState<ManifestInfo[]>([]);
   const [backups, setBackups] = useState<BackupInfo[]>([]);
+  const [syncEvents, setSyncEvents] = useState<SyncHistoryEntry[]>([]);
   const [trashStats, setTrashStats] = useState<TrashStats | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,12 +53,14 @@ export function HistoryPage() {
       api.manifestsList(30),
       api.trashStats(),
       api.backupsList(30),
+      api.syncHistory(50),
     ])
-      .then(([history, manifestList, stats, backupList]) => {
+      .then(([history, manifestList, stats, backupList, events]) => {
         setItems(history);
         setManifests(manifestList);
         setTrashStats(stats);
         setBackups(backupList);
+        setSyncEvents(events);
         // 默认对比最近两份快照
         setDiffA((prev) => prev ?? (history.length >= 2 ? history[1].id : null));
         setDiffB((prev) => prev ?? (history.length >= 1 ? history[0].id : null));
@@ -450,20 +454,67 @@ export function HistoryPage() {
         )}
       </SectionCard>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <Card className="border-dashed">
-          <div className="flex items-center gap-2">
-            <Icon name="adapter" className="h-4 w-4 text-accent-400" />
-            <span className="text-sm text-slate-200">Agent 配置同步审计</span>
-            <Badge tone="violet" className="ml-auto">
-              M2
-            </Badge>
+      {/* Agent 配置同步审计时间线 */}
+      <SectionCard
+        title="Agent 配置同步审计"
+        subtitle={`每次配置写入（MCP 分发 / 供应商分发 / 档案应用）都留一条：改了什么、备份在哪、结果如何 · 共 ${syncEvents.length} 条`}
+        action={
+          <Badge tone="slate" icon="history">
+            {loading ? "加载中…" : `${syncEvents.length} 条`}
+          </Badge>
+        }
+        bodyClassName="space-y-2"
+      >
+        {syncEvents.length === 0 ? (
+          <Empty
+            icon="adapter"
+            title={loading ? "正在读取…" : "还没有配置写入记录"}
+            description="用「MCP → 分发到 Agent」「供应商 → 分发到 Agent」或「档案 → 应用」写入配置后，这里会出现逐条审计记录。"
+          />
+        ) : (
+          <div className="relative pl-6">
+            <span className="absolute bottom-2 left-[9px] top-2 w-px bg-ink-700" />
+            <div className="space-y-2.5">
+              {syncEvents.map((event) => (
+                <div key={event.id} className="relative">
+                  <span
+                    className={`absolute -left-6 top-3.5 h-[9px] w-[9px] rounded-full border-2 ${
+                      event.status === "ok"
+                        ? "border-brand-500 bg-brand-900"
+                        : "border-rose-500 bg-rose-950"
+                    }`}
+                  />
+                  <div className="rounded-md border border-ink-800 bg-ink-900 px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusDot state={event.status === "ok" ? "ok" : "error"} />
+                      <span className="text-xs text-slate-200">{event.summary}</span>
+                      <Badge tone="slate">{event.actor === "cli" ? "CLI" : "界面"}</Badge>
+                      <span className="ml-auto font-mono text-[10.5px] text-slate-500">
+                        {event.createdAt}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="mono truncate text-[10.5px]" title={event.target}>
+                        {shortenPath(event.target, 60)}
+                      </span>
+                      {event.backupPath && (
+                        <button
+                          type="button"
+                          className="btn-ghost btn-sm shrink-0"
+                          onClick={() => reveal(event.backupPath as string)}
+                        >
+                          <Icon name="folder" className="h-3.5 w-3.5" />
+                          查看写入前备份
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-            配置写入的 diff 与备份会并入同一条时间线（当前已覆盖 Skill 类操作）。
-          </p>
-        </Card>
-      </div>
+        )}
+      </SectionCard>
     </div>
   );
 }

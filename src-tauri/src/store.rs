@@ -771,6 +771,46 @@ impl Store {
         Ok(())
     }
 
+    /// 同步审计时间线（最新在前）
+    pub fn sync_history_list(&self, limit: usize) -> Vec<crate::model::SyncHistoryEntry> {
+        let conn = match self.conn.lock() {
+            Ok(c) => c,
+            Err(_) => return Vec::new(),
+        };
+        let mut stmt = match conn.prepare(
+            "SELECT id, diff_json, backup_path, status, actor, created_at
+             FROM sync_history ORDER BY id DESC LIMIT ?1",
+        ) {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
+        };
+        let rows = stmt.query_map(params![limit as i64], |row| {
+            let diff_json: String = row.get(1)?;
+            let parsed: serde_json::Value = serde_json::from_str(&diff_json).unwrap_or_default();
+            Ok(crate::model::SyncHistoryEntry {
+                id: row.get(0)?,
+                target: parsed
+                    .get("target")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                summary: parsed
+                    .get("summary")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                backup_path: row.get(2)?,
+                status: row.get(3)?,
+                actor: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        });
+        match rows {
+            Ok(iter) => iter.flatten().collect(),
+            Err(_) => Vec::new(),
+        }
+    }
+
     /// 取连接锁。PoisonError 不能直接 `?`（MutexGuard 非 Send），这里显式转换。
     fn conn(&self) -> Result<std::sync::MutexGuard<'_, Connection>> {
         self.conn

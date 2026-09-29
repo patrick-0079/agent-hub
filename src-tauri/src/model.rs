@@ -470,6 +470,24 @@ pub struct ProfileDetail {
     pub items: Vec<ProfileItem>,
 }
 
+/// 同步审计时间线的一条记录（每次配置写入/回滚留痕）
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncHistoryEntry {
+    pub id: i64,
+    /// 目标文件路径
+    pub target: String,
+    /// 变更摘要（如 "claude-code：+2 ~1 -0"）
+    pub summary: String,
+    /// 写入前的备份路径（可回滚）
+    pub backup_path: Option<String>,
+    /// ok | error
+    pub status: String,
+    /// gui | cli
+    pub actor: String,
+    pub created_at: String,
+}
+
 /* ------------------------------------------------------ 配置合并与同步 */
 
 fn default_target_kind() -> String {

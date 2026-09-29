@@ -924,6 +924,15 @@ pub fn snapshot_diff(
     Ok(diff)
 }
 
+/// Agent 配置同步审计时间线（每次写入留痕：目标、变更摘要、备份、状态）
+#[tauri::command]
+pub fn sync_history(
+    state: State<'_, AppState>,
+    limit: Option<usize>,
+) -> Vec<crate::model::SyncHistoryEntry> {
+    state.store.sync_history_list(limit.unwrap_or(50))
+}
+
 /// 导出档案到数据目录 exports/（自包含 JSON，可拷给他人导入）
 #[tauri::command]
 pub fn profile_export(

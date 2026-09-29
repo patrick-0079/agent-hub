@@ -31,6 +31,7 @@ import type {
   SkillEnv,
   SnapshotDiff,
   SnapshotMeta,
+  SyncHistoryEntry,
   SyncPlan,
   TextPreview,
   TrashDetail,
@@ -145,6 +146,7 @@ export const api = {
     call<ProviderBalanceResult>("provider_balance_query", { id }),
   snapshotDiff: (idA: number, idB: number) =>
     call<SnapshotDiff>("snapshot_diff", { idA, idB }),
+  syncHistory: (limit = 50) => call<SyncHistoryEntry[]>("sync_history", { limit }),
   profileExport: (id: number) => call<ProfileExportOutcome>("profile_export", { id }),
   profileExportList: () => call<ProfileExportMeta[]>("profile_export_list"),
   profileImport: (path: string) => call<ProfileDetail>("profile_import", { path }),

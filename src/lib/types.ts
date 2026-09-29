@@ -504,6 +504,23 @@ export interface SnapshotDiff {
   summary: string;
 }
 
+/* ------------------------------------------------- 同步审计时间线（M2） */
+
+export interface SyncHistoryEntry {
+  id: number;
+  /** 目标文件路径 */
+  target: string;
+  /** 变更摘要（如 "claude-code：+2 ~1 -0"） */
+  summary: string;
+  /** 写入前的备份路径（可回滚） */
+  backupPath: string | null;
+  /** ok | error */
+  status: string;
+  /** gui | cli */
+  actor: string;
+  createdAt: string;
+}
+
 /* ------------------------------------------------- 档案导出/导入（M1） */
 
 export interface ProfileExportMeta {

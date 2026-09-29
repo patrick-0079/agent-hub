@@ -2347,6 +2347,38 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
         let _ = std::fs::remove_file(&legacy);
     }
 
+    println!("[26] 同步审计时间线（写入留痕 → 倒序读取）");
+    {
+        let store = crate::store::Store::open(&base.join("selftest-history.db")).unwrap();
+        store
+            .sync_history_add(
+                "C:/fake/mcp.json",
+                "claude-code：+2 ~1 -0",
+                Some("C:/fake/backup-1.json"),
+                "ok",
+            )
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(1100));
+        store
+            .sync_history_add("C:/fake/settings.json", "provider：+1 ~0 -0", None, "ok")
+            .unwrap();
+        let list = store.sync_history_list(10);
+        check!(
+            list.len() == 2 && list[0].summary.contains("provider") && list[1].summary.contains("+2"),
+            "时间线 {} 条且最新在前（{} / {}）",
+            list.len(),
+            list[0].summary,
+            list[1].summary
+        );
+        check!(
+            list[1].backup_path.as_deref() == Some("C:/fake/backup-1.json")
+                && list[0].backup_path.is_none()
+                && list[0].actor == "gui",
+            "备份路径与操作者字段完整保留"
+        );
+        let _ = std::fs::remove_file(base.join("selftest-history.db"));
+    }
+
     println!("\n=== 结果：{} 项通过，{} 项失败 ===", pass, fail);
     println!("沙箱残留（可手动删除）: {}", base.display());
     if fail > 0 {
@@ -2463,6 +2495,7 @@ pub fn run() {
             commands::provider_test,
             commands::provider_balance_query,
             commands::snapshot_diff,
+            commands::sync_history,
             commands::profile_export,
             commands::profile_export_list,
             commands::profile_import,
