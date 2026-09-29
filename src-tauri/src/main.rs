@@ -22,5 +22,10 @@ fn main() {
         agenthub_lib::cli_db_check();
         return;
     }
+    // 供应商体检（连通性 + DeepSeek 余额）：agenthub --providers-check
+    if std::env::args().any(|a| a == "--providers-check") {
+        agenthub_lib::cli_providers_check();
+        return;
+    }
     agenthub_lib::run()
 }

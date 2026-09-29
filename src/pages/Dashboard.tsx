@@ -1,6 +1,6 @@
-/** 仪表盘：KPI、拓扑图、工具链状态、告警、Agent 目标总览。 */
+/** 仪表盘：KPI、拓扑图、工具链状态、供应商健康、告警、Agent 目标总览。 */
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Icon } from "../components/Icon";
 import { Topology } from "../components/Topology";
 import {
@@ -13,10 +13,104 @@ import {
   StatusDot,
   type DotState,
 } from "../components/ui";
+import { api } from "../lib/api";
 import { CATEGORY_LABEL, useReveal } from "../lib/hooks";
 import { formatDuration, relativeTime } from "../lib/format";
 import { useApp } from "../lib/store";
-import type { ExecutableInfo } from "../lib/types";
+import type { ExecutableInfo, ProviderResource } from "../lib/types";
+
+/** 供应商健康汇总：连通状态 + DeepSeek 余额（从资源库实时读取） */
+function ProviderHealthCard({ onNavigate }: { onNavigate: () => void }) {
+  const [providers, setProviders] = useState<ProviderResource[] | null>(null);
+
+  useEffect(() => {
+    api
+      .providerResources()
+      .then(setProviders)
+      .catch(() => setProviders([]));
+  }, []);
+
+  if (providers == null) {
+    return (
+      <SectionCard title="供应商状态" subtitle="正在读取资源库…">
+        <Empty icon="providers" title="读取中…" />
+      </SectionCard>
+    );
+  }
+  if (providers.length === 0) {
+    return (
+      <SectionCard title="供应商状态" subtitle="资源库还是空的">
+        <Empty
+          icon="providers"
+          title="尚未登记任何供应商"
+          description="把 API Key / Base URL 集中到 AgentHub，之后可以一键测试连通性、查询余额并分发到各 Agent。"
+          action={
+            <button type="button" className="btn-primary mt-2" onClick={onNavigate}>
+              <Icon name="plus" className="h-4 w-4" />
+              去新增供应商
+            </button>
+          }
+        />
+      </SectionCard>
+    );
+  }
+
+  const ok = providers.filter((p) => p.health.status === "ok").length;
+  const noKey = providers.filter((p) => p.health.status === "no_key").length;
+  const failed = providers.filter((p) => p.health.status === "error").length;
+  const untested = providers.length - ok - noKey - failed;
+  const dot = (status: string): DotState =>
+    status === "ok" ? "ok" : status === "no_key" ? "warn" : status === "error" ? "error" : "idle";
+
+  return (
+    <SectionCard
+      title="供应商状态"
+      subtitle={`共 ${providers.length} 个：${ok} 连通 · ${noKey} 缺 Key · ${failed} 失败 · ${untested} 未测`}
+      action={
+        <button type="button" className="btn-ghost btn-sm" onClick={onNavigate}>
+          <Icon name="providers" className="h-3.5 w-3.5" />
+          管理与测试
+        </button>
+      }
+      bodyClassName="space-y-1.5"
+    >
+      {providers.slice(0, 6).map((p) => (
+        <button
+          key={p.id}
+          type="button"
+          onClick={onNavigate}
+          className="flex w-full items-center gap-3 rounded-md border border-ink-800/60 bg-ink-900 px-3 py-2 text-left hover:border-ink-600"
+        >
+          <StatusDot state={dot(p.health.status)} />
+          <span className="w-28 shrink-0 truncate text-sm text-slate-200">{p.name}</span>
+          <Badge tone="slate">{p.kind}</Badge>
+          <span className="min-w-0 flex-1 truncate text-[11px] text-slate-500" title={p.health.message}>
+            {p.health.status === "ok"
+              ? `连通 ${p.health.latencyMs} ms${p.health.models != null ? ` · ${p.health.models} 模型` : ""}`
+              : p.health.status === "no_key"
+                ? "可达，未保存 Key"
+                : p.health.status === "error"
+                  ? p.health.message
+                  : "未测试"}
+          </span>
+          {p.balance.status === "ok" && (
+            <Badge tone="teal" className="shrink-0">
+              余额 {p.balance.currency} {p.balance.totalBalance}
+            </Badge>
+          )}
+          {p.hasKey && (
+            <Icon name="lock" className="h-3 w-3 shrink-0 text-slate-500" />
+          )}
+        </button>
+      ))}
+      {providers.length > 6 && (
+        <p className="pt-1 text-center text-[11px] text-slate-500">
+          其余 {providers.length - 6} 个见「模型供应商」页
+        </p>
+      )}
+    </SectionCard>
+  );
+}
 
 export function Dashboard() {
   const snapshot = useApp((s) => s.snapshot);
@@ -95,7 +189,7 @@ export function Dashboard() {
           value={snapshot.mcpServers.length}
           icon="mcp"
           tone="sky"
-          hint="配置条目（健康检查 M3）"
+          hint="配置条目（资源库可握手测试）"
           onClick={() => navigate("mcp")}
         />
         <Kpi
@@ -273,6 +367,8 @@ export function Dashboard() {
               />
             )}
           </SectionCard>
+
+          <ProviderHealthCard onNavigate={() => navigate("providers")} />
         </div>
       </div>
 

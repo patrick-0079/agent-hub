@@ -80,12 +80,77 @@ pub fn cli_trash() {
     }
 }
 
+/// 无界面供应商体检：`agenthub --providers-check`
+///
+/// 对资源库里的每个启用供应商跑一次连通性测试（GET models），
+/// DeepSeek 类型再查一次余额（/user/balance）；结果落库（与 GUI 同一份）。
+/// Agent 自己也能用它做环境自检 —— 这是 M4「CLI 完整化」的第一块镜像。
+pub fn cli_providers_check() {
+    let data_dir = default_data_dir();
+    let store = match store::Store::open(&data_dir.join("agenthub.db")) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("打开数据库失败：{}", e);
+            std::process::exit(1);
+        }
+    };
+    let vault = vault::Vault::open(&data_dir.join("vault.json"));
+    let proxy = store.load_settings().network_proxy;
+
+    let providers = store.provider_list();
+    let enabled: Vec<_> = providers.into_iter().filter(|p| p.enabled).collect();
+    println!(
+        "供应商体检：{} 个启用（代理 {}）\n",
+        enabled.len(),
+        if proxy.is_empty() { "未配置" } else { &proxy }
+    );
+    if enabled.is_empty() {
+        println!("（资源库为空：在 GUI「模型供应商」页新增或从线索导入）");
+        return;
+    }
+
+    let mut ok = 0usize;
+    for p in &enabled {
+        let key_ref = if p.key_ref.is_empty() {
+            format!("provider:{}", p.name)
+        } else {
+            p.key_ref.clone()
+        };
+        let key = vault.get(&key_ref);
+        let mut test = probe::test_provider(&p.base_url, &p.kind, key.as_deref(), &proxy);
+        test.provider_id = p.id;
+        test.provider_name = p.name.clone();
+        if let Ok(json) = serde_json::to_string(&test) {
+            let _ = store.provider_set_health(p.id, &json);
+        }
+        let icon = match test.status.as_str() {
+            "ok" => "✅",
+            "no_key" => "⚠️ ",
+            _ => "❌",
+        };
+        if test.status == "ok" {
+            ok += 1;
+        }
+        println!("{} {:<20} {}", icon, p.name, test.message);
+
+        if p.kind.to_lowercase().contains("deepseek") {
+            let mut balance = probe::query_balance(&p.base_url, &p.kind, key.as_deref(), &proxy);
+            balance.provider_id = p.id;
+            balance.provider_name = p.name.clone();
+            if let Ok(json) = serde_json::to_string(&balance) {
+                let _ = store.provider_set_balance(p.id, &json);
+            }
+            println!("   余额：{}", balance.message);
+        }
+    }
+    println!("\n结果：{} / {} 个供应商连通正常（健康状态已写回 provider.health）", ok, enabled.len());
+}
+
 /// 无界面数据库自检：`agenthub --db-check`
 ///
 /// 会在真实数据库上执行一次迁移与「写入 → 读回 → 删除」的往返验证（用临时条目，
 /// 结束后清理）。老库缺列导致的写入失败就是靠这个路径暴露的。
-pub fn cli_db_check() {
-    let db = default_data_dir().join("agenthub.db");
+pub fn cli_db_check() {    let db = default_data_dir().join("agenthub.db");
     println!("数据库: {}", db.display());
     let store = match store::Store::open(&db) {
         Ok(s) => s,
