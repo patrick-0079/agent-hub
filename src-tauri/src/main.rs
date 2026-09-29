@@ -27,5 +27,10 @@ fn main() {
         agenthub_lib::cli_providers_check();
         return;
     }
+    // MCP 握手体检：agenthub --mcp-check
+    if std::env::args().any(|a| a == "--mcp-check") {
+        agenthub_lib::cli_mcp_check();
+        return;
+    }
     agenthub_lib::run()
 }

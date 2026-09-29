@@ -147,6 +147,58 @@ pub fn cli_providers_check() {
     println!("\n结果：{} / {} 个供应商连通正常（健康状态已写回 provider.health）", ok, enabled.len());
 }
 
+/// 无界面 MCP 握手体检：`agenthub --mcp-check`
+///
+/// 对资源库里的每个启用 MCP 服务器做一次真实握手（stdio 起进程 / http initialize），
+/// 结果落库（mcp_server.health，与 GUI 同一份）。stdio 型每次握手 15 秒上限。
+pub fn cli_mcp_check() {
+    let data_dir = default_data_dir();
+    let store = match store::Store::open(&data_dir.join("agenthub.db")) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("打开数据库失败：{}", e);
+            std::process::exit(1);
+        }
+    };
+    let proxy = store.load_settings().network_proxy;
+    let servers = store.mcp_list();
+    let enabled: Vec<_> = servers.into_iter().filter(|m| m.enabled).collect();
+    println!(
+        "MCP 握手体检：{} 个启用（代理 {}）\n",
+        enabled.len(),
+        if proxy.is_empty() { "未配置" } else { &proxy }
+    );
+    if enabled.is_empty() {
+        println!("（资源库为空：在 GUI「MCP 服务器」页新增、从扫描导入或从模板添加）");
+        return;
+    }
+
+    let mut ok = 0usize;
+    for m in &enabled {
+        let result = handshake::handshake(m, &proxy);
+        if let Ok(json) = serde_json::to_string(&result) {
+            let _ = store.mcp_set_health(m.id, &json);
+        }
+        if result.status == "ok" {
+            ok += 1;
+        }
+        let icon = match result.status.as_str() {
+            "ok" => "✅",
+            "timeout" => "⏳ ",
+            _ => "❌",
+        };
+        println!(
+            "{} {:<24} [{}] {}",
+            icon, m.name, m.transport, result.message
+        );
+    }
+    println!(
+        "\n结果：{} / {} 个握手成功（健康状态已写回 mcp_server.health）",
+        ok,
+        enabled.len()
+    );
+}
+
 /// 无界面数据库自检：`agenthub --db-check`
 ///
 /// 会在真实数据库上执行一次迁移与「写入 → 读回 → 删除」的往返验证（用临时条目，
