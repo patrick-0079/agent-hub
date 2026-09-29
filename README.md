@@ -245,6 +245,7 @@ configWrite = ["merge-keys"]
 | **供应商资源库 + 密钥保险库** | DPAPI 加密的密钥存储、供应商 CRUD 与分发（`[[providerWrite]]`）、diff 全程掩码，见下节 |
 | **Skill 快捷导入 / 清理 / 重建 / 删除** | T2/T3 首批落地能力，见下节 |
 | **全局任务控制台** | 底部可折叠面板，实时展示各阶段进度与逐行日志 |
+| **命令面板（M4 提前落地）** | `Ctrl+K` 全局搜索直达 13 个功能页与常用操作（含重新扫描），↑↓/Enter/Esc 键盘驱动，顶栏「搜索」按钮同入口 |
 | **SQLite 存储** | 设置、扫描快照、Agent 定义相关状态（M1/M2 资源表已预置） |
 | **无界面自检** | `agenthub --scan-json` 输出扫描快照 JSON（也是 M4 CLI 的种子） |
 
@@ -336,7 +337,7 @@ cargo run -- --scan-json > snapshot.json
 | M2（其余） | Provider 分发到更多 Agent（opencode）、diff 三屏推广到其它资源、Agent 配置同步审计时间线 |
 | M3 | ~~MCP 握手健康检查~~ ✅；余下：uv / conda 环境创建向导、npm 声明式安装与版本锁定 |
 | M3.5 | 定义的模版语法（Tera）与可视化编辑器、反向生成向导、定义导出分享 |
-| M4 | 命令面板、换机迁移导入导出、CLI 完整化、浅色主题与英文界面 |
+| M4 | ~~命令面板~~ ✅（Ctrl+K）；余下：换机迁移导入导出、CLI 完整化、浅色主题与英文界面 |
 | M5 | 本地统一网关（OpenAI 兼容 proxy）：用量统计、Key 轮换、故障切换 |
 
 详见 [docs/design/PLAN.md](docs/design/PLAN.md)。

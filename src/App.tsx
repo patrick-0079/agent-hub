@@ -1,6 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { TaskConsole } from "./components/TaskConsole";
+import { CommandPalette } from "./components/CommandPalette";
 import { Icon, type IconName } from "./components/Icon";
 import { Badge } from "./components/ui";
 import { api } from "./lib/api";
@@ -80,9 +81,22 @@ export default function App() {
   const host = useApp((s) => s.host);
   const scan = useApp((s) => s.scan);
   const setBanner = useApp((s) => s.setBanner);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
     void useApp.getState().init();
+  }, []);
+
+  // Ctrl+K / Cmd+K 打开命令面板
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   useEffect(() => {
@@ -124,6 +138,16 @@ export default function App() {
                 v{host.appVersion}
               </Badge>
             )}
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              className="btn-ghost btn-sm hidden md:flex"
+              title="命令面板（Ctrl+K）"
+            >
+              <Icon name="search" className="h-3.5 w-3.5" />
+              搜索
+              <span className="kbd ml-1">Ctrl K</span>
+            </button>
             <span className="hidden text-[11px] text-slate-500 md:block">
               上次扫描 {relativeTime(snapshot?.scannedAt)}
             </span>
@@ -176,6 +200,7 @@ export default function App() {
 
         <TaskConsole />
       </div>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }
