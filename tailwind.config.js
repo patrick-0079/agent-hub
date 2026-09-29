@@ -4,23 +4,29 @@ export default {
   theme: {
     extend: {
       colors: {
+        // 中性灰阶（扁平、无色偏）
         ink: {
-          950: "#070a10",
-          900: "#0b0f17",
-          850: "#0f1420",
-          800: "#141a28",
-          700: "#1c2434",
-          600: "#2a3446",
-          500: "#3b4759",
+          950: "#0a0b0d",
+          900: "#101214",
+          850: "#15171a",
+          800: "#1c1f23",
+          700: "#262a2f",
+          600: "#343941",
+          500: "#454c55",
         },
+        // 单一强调色（低饱和青）
         brand: {
-          400: "#5eead4",
-          500: "#2dd4bf",
-          600: "#14b8a6",
+          900: "#0d2723",
+          800: "#14413a",
+          500: "#2f9d90",
+          400: "#4db3a6",
         },
+        // 次强调（低饱和紫，仅用于“规划/待实现”语义）
         accent: {
-          400: "#a78bfa",
-          500: "#8b5cf6",
+          900: "#1d1a30",
+          800: "#2b2745",
+          500: "#8a7fbe",
+          400: "#a89dd0",
         },
       },
       fontFamily: {
@@ -42,7 +48,7 @@ export default {
         },
       },
       animation: {
-        "fade-in": "fade-in 0.22s ease-out",
+        "fade-in": "fade-in 0.18s ease-out",
         "pulse-soft": "pulse-soft 1.6s ease-in-out infinite",
         sweep: "sweep 1.4s linear infinite",
       },

@@ -137,9 +137,9 @@ export function SkillsPage() {
     <div className="space-y-4">
       {/* 失效链接汇总条 */}
       {broken.length > 0 && (
-        <Card className="border-rose-500/30 bg-rose-500/5">
+        <Card className="border-rose-500/30 bg-rose-950">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-2 text-rose-300">
+            <span className="rounded-lg border border-rose-500/40 bg-rose-950 p-2 text-rose-300">
               <Icon name="alert" className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">
@@ -219,7 +219,7 @@ export function SkillsPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="rounded-lg border border-ink-700 bg-ink-900/70 px-2.5 py-1 text-xs text-slate-300"
+              className="rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-1 text-xs text-slate-300"
             >
               <option value="all">全部分类（{categories.length}）</option>
               {categories.map(([name, count]) => (
@@ -256,16 +256,16 @@ export function SkillsPage() {
                 onClick={() => void open(skill)}
                 className={`card group flex flex-col gap-2 p-4 text-left transition-colors ${
                   skill.broken
-                    ? "border-rose-500/40 bg-rose-500/5 hover:border-rose-500/60"
-                    : "hover:border-brand-500/40 hover:bg-ink-800/60"
+                    ? "border-rose-500/40 bg-rose-950 hover:border-rose-500/60"
+                    : "hover:border-brand-500/40 hover:bg-ink-800"
                 }`}
               >
                 <div className="flex items-start gap-2">
                   <span
                     className={`mt-0.5 rounded-md border p-1.5 ${
                       skill.broken
-                        ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
-                        : "border-brand-500/30 bg-brand-500/10 text-brand-400"
+                        ? "border-rose-500/40 bg-rose-950 text-rose-300"
+                        : "border-brand-500/30 bg-brand-900 text-brand-400"
                     }`}
                   >
                     <Icon name={skill.broken ? "alert" : "skills"} className="h-3.5 w-3.5" />
@@ -357,7 +357,7 @@ export function SkillsPage() {
                 <button
                   type="button"
                   onClick={() => setDeleteSkill(selected)}
-                  className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-500/10"
+                  className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-950"
                 >
                   <Icon name="close" className="h-3.5 w-3.5" />
                   删除
@@ -367,7 +367,7 @@ export function SkillsPage() {
 
             {selected.linkTarget && (
               <Card
-                className={selected.broken ? "border-rose-500/40 bg-rose-500/5" : "border-ink-700/60"}
+                className={selected.broken ? "border-rose-500/40 bg-rose-950" : "border-ink-700/60"}
               >
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                   链接目标
@@ -403,7 +403,7 @@ export function SkillsPage() {
             )}
 
             {selected.broken && (
-              <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-200">
+              <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-950 px-3 py-2.5 text-xs text-rose-200">
                 <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
                 <span className="leading-relaxed">
                   这是链接指向失效，不是 Skill 本身的问题 —— 内容无处可读，故下方不显示预览。
@@ -429,7 +429,7 @@ export function SkillsPage() {
                   {files.slice(0, 24).map((file) => (
                     <div
                       key={file.name}
-                      className="flex items-center gap-2 rounded-md border border-ink-800 bg-ink-900/40 px-2.5 py-1.5"
+                      className="flex items-center gap-2 rounded-md border border-ink-800 bg-ink-900 px-2.5 py-1.5"
                     >
                       <Icon
                         name={file.isDir ? "folder" : "terminal"}
@@ -458,7 +458,7 @@ export function SkillsPage() {
               {preview?.error ? (
                 <p className="text-xs text-rose-300">{preview.error}</p>
               ) : (
-                <pre className="max-h-[420px] overflow-auto rounded-lg border border-ink-800 bg-ink-950/70 p-3 text-[11.5px] leading-relaxed text-slate-300">
+                <pre className="max-h-[420px] overflow-auto rounded-lg border border-ink-800 bg-ink-950 p-3 text-[11.5px] leading-relaxed text-slate-300">
                   {preview?.text ?? "加载中…"}
                 </pre>
               )}

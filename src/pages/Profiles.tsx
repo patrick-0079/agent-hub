@@ -198,8 +198,8 @@ function ProfileEditor({
                 onClick={() => toggle(agent.id, agents, setAgents)}
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11.5px] transition-colors ${
                   agents.includes(agent.id)
-                    ? "border-brand-500/50 bg-brand-500/10 text-brand-300"
-                    : "border-ink-700 bg-ink-900/50 text-slate-400 hover:bg-ink-800"
+                    ? "border-brand-500/50 bg-brand-900 text-brand-300"
+                    : "border-ink-700 bg-ink-900 text-slate-400 hover:bg-ink-800"
                 }`}
               >
                 <span className="h-3.5 w-1 rounded" style={{ background: agent.accent }} />
@@ -224,7 +224,7 @@ function ProfileEditor({
             ]}
           />
 
-          <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-ink-800 bg-ink-900/40 p-2">
+          <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-ink-800 bg-ink-900 p-2">
             {tab === "mcp" &&
               (mcpList.length === 0 ? (
                 <p className="px-2 py-4 text-xs text-slate-500">
@@ -234,7 +234,7 @@ function ProfileEditor({
                 mcpList.map((item) => (
                   <label
                     key={item.id}
-                    className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-1.5 hover:bg-ink-800/50"
+                    className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-1.5 hover:bg-ink-800"
                   >
                     <input
                       type="checkbox"
@@ -260,7 +260,7 @@ function ProfileEditor({
                 providerList.map((item) => (
                   <label
                     key={item.id}
-                    className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-1.5 hover:bg-ink-800/50"
+                    className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-1.5 hover:bg-ink-800"
                   >
                     <input
                       type="checkbox"
@@ -328,7 +328,7 @@ function ProfileEditor({
                 {skillOptions.shown.map((skill) => (
                   <label
                     key={skill.id}
-                    className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-1.5 hover:bg-ink-800/50"
+                    className="flex cursor-pointer items-center gap-2.5 rounded px-2 py-1.5 hover:bg-ink-800"
                   >
                     <input
                       type="checkbox"
@@ -459,7 +459,7 @@ export function ProfilesPage() {
             {profiles.map((profile) => (
               <Card key={profile.id} className="border-ink-700/60">
                 <div className="flex items-start gap-3">
-                  <span className="rounded-lg border border-accent-500/40 bg-accent-500/10 p-2 text-accent-400">
+                  <span className="rounded-lg border border-accent-500/40 bg-accent-900 p-2 text-accent-400">
                     <Icon name="profiles" className="h-4 w-4" />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -516,7 +516,7 @@ export function ProfilesPage() {
                   </button>
                   <button
                     type="button"
-                    className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-500/10"
+                    className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-950"
                     onClick={() => void remove(profile)}
                   >
                     <Icon name="close" className="h-3.5 w-3.5" />

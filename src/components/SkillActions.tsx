@@ -45,7 +45,7 @@ export function PlanView({ plan }: { plan: ActionPlan }) {
           {plan.warnings.map((w, i) => (
             <div
               key={i}
-              className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs leading-relaxed text-amber-200"
+              className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-950 px-3 py-2 text-xs leading-relaxed text-amber-200"
             >
               <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               {w}
@@ -54,7 +54,7 @@ export function PlanView({ plan }: { plan: ActionPlan }) {
         </div>
       )}
 
-      <div className="max-h-72 space-y-1 overflow-auto rounded-lg border border-ink-800 bg-ink-950/40 p-2">
+      <div className="max-h-72 space-y-1 overflow-auto rounded-lg border border-ink-800 bg-ink-950 p-2">
         {plan.items.slice(0, 200).map((item, i) => (
           <div key={`${item.target}-${i}`} className="flex items-start gap-2 rounded px-2 py-1.5 text-[11.5px]">
             <span
@@ -96,8 +96,8 @@ export function ResultView({
       <div
         className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm ${
           result.ok
-            ? "border-brand-500/30 bg-brand-500/5 text-brand-400"
-            : "border-rose-500/30 bg-rose-500/5 text-rose-300"
+            ? "border-brand-500/30 bg-brand-900 text-brand-400"
+            : "border-rose-500/30 bg-rose-950 text-rose-300"
         }`}
       >
         <Icon name={result.ok ? "check" : "alert"} className="h-4 w-4" />
@@ -107,14 +107,14 @@ export function ResultView({
       {result.warnings.map((w, i) => (
         <div
           key={i}
-          className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs text-amber-200"
+          className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-950 px-3 py-2 text-xs text-amber-200"
         >
           <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           {w}
         </div>
       ))}
 
-      <div className="max-h-72 space-y-1 overflow-auto rounded-lg border border-ink-800 bg-ink-950/40 p-2">
+      <div className="max-h-72 space-y-1 overflow-auto rounded-lg border border-ink-800 bg-ink-950 p-2">
         <div className="px-2 pb-1 text-[10.5px] uppercase tracking-wider text-slate-600">
           执行明细（{okCount} / {result.steps.length} 成功）
         </div>
@@ -135,7 +135,7 @@ export function ResultView({
       </div>
 
       {result.manifest && (
-        <div className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-900/40 px-3 py-2">
+        <div className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2">
           <Icon name="shield" className="h-3.5 w-3.5 shrink-0 text-brand-400" />
           <span className="mono min-w-0 flex-1 truncate" title={result.manifest}>
             {result.manifest}
@@ -389,7 +389,7 @@ export function ImportDialog({
               </p>
               {cloneResult && !cloneResult.ok && <ResultView result={cloneResult} onReveal={onReveal} />}
               {clonePath && cloneResult?.ok && (
-                <div className="flex items-center gap-2 rounded-lg border border-ink-800 bg-ink-900/40 px-3 py-2">
+                <div className="flex items-center gap-2 rounded-lg border border-ink-800 bg-ink-900 px-3 py-2">
                   <Icon name="folder" className="h-3.5 w-3.5 shrink-0 text-slate-500" />
                   <span className="mono min-w-0 flex-1 truncate">{clonePath}</span>
                   <button
@@ -473,7 +473,7 @@ export function ImportDialog({
                 {discovered.map((skill) => (
                   <label
                     key={skill.path}
-                    className="flex cursor-pointer items-start gap-2.5 rounded-md border border-ink-800 bg-ink-900/40 px-2.5 py-2 hover:bg-ink-800/50"
+                    className="flex cursor-pointer items-start gap-2.5 rounded-md border border-ink-800 bg-ink-900 px-2.5 py-2 hover:bg-ink-800"
                   >
                     <input
                       type="checkbox"
@@ -776,7 +776,7 @@ export function DeleteDialog({
       {result ? (
         <ResultView result={result} onReveal={onReveal} />
       ) : error ? (
-        <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-200">
+        <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-950 px-3 py-2.5 text-xs text-rose-200">
           <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="leading-relaxed">{error}</span>
         </div>
@@ -857,7 +857,7 @@ export function ActionDialog({
       {result ? (
         <ResultView result={result} onReveal={onReveal} />
       ) : error ? (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2.5 text-xs text-amber-200">
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-950 px-3 py-2.5 text-xs text-amber-200">
           <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="leading-relaxed">{error}</span>
         </div>
@@ -902,7 +902,7 @@ export function BrokenSummary({ broken }: { broken: BrokenRef[] }) {
   return (
     <div className="space-y-2">
       {groups.map(([target, items]) => (
-        <div key={target} className="rounded-lg border border-rose-500/25 bg-rose-500/5 px-3 py-2">
+        <div key={target} className="rounded-lg border border-rose-500/25 bg-rose-950 px-3 py-2">
           <div className="flex items-center gap-2 text-xs">
             <Icon name="alert" className="h-3.5 w-3.5 shrink-0 text-rose-300" />
             <span className="text-rose-200">{items.length} 个链接指向缺失目录</span>

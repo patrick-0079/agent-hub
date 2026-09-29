@@ -30,7 +30,7 @@ function PathListEditor({
         {values.map((value, index) => (
           <div
             key={`${value}-${index}`}
-            className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-900/50 px-3 py-1.5"
+            className="flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5"
           >
             <Icon name="folder" className="h-3.5 w-3.5 shrink-0 text-slate-500" />
             <span className="mono min-w-0 flex-1 truncate" title={value}>
@@ -163,7 +163,7 @@ export function Settings() {
                 return (
                   <div
                     key={item.name}
-                    className="rounded-lg border border-ink-800/70 bg-ink-900/40 px-3 py-2.5"
+                    className="rounded-lg border border-ink-800/70 bg-ink-900 px-3 py-2.5"
                   >
                     <div className="flex items-center gap-3">
                       <StatusDot state={item.found ? "ok" : "idle"} />
@@ -505,7 +505,7 @@ export function Settings() {
             { label: "主机名", value: host?.hostname ?? "—", icon: "link" as IconName },
             { label: "当前阶段", value: "M0 · 侦察与可视化", icon: "shield" as IconName },
           ].map((item) => (
-            <div key={item.label} className="rounded-lg border border-ink-800 bg-ink-900/40 px-3 py-2.5">
+            <div key={item.label} className="rounded-lg border border-ink-800 bg-ink-900 px-3 py-2.5">
               <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-500">
                 <Icon name={item.icon} className="h-3 w-3" />
                 {item.label}

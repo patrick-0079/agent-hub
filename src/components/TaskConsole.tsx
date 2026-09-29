@@ -43,12 +43,12 @@ export function TaskConsole() {
     last && last.total > 0 ? Math.round((last.current / last.total) * 100) : scanning ? null : 100;
 
   return (
-    <div className="shrink-0 border-t border-ink-700/70 bg-ink-900/80">
+    <div className="shrink-0 border-t border-ink-700 bg-ink-900">
       {/* 状态条 */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-ink-850/60"
+        className="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-ink-850"
       >
         <span className="flex items-center gap-2 text-xs font-medium text-slate-300">
           <Icon name="terminal" className="h-3.5 w-3.5 text-slate-500" />

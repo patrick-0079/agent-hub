@@ -82,7 +82,7 @@ export function PythonPage() {
                 {list.map((env) => (
                   <div
                     key={env.id}
-                    className="rounded-lg border border-ink-800/70 bg-ink-900/40 px-3.5 py-3"
+                    className="rounded-lg border border-ink-800/70 bg-ink-900 px-3.5 py-3"
                   >
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium text-slate-100">{env.name}</span>

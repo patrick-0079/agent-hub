@@ -11,10 +11,8 @@
 
   body {
     overflow: hidden;
-    background:
-      radial-gradient(1200px 600px at 12% -10%, rgba(45, 212, 191, 0.07), transparent 60%),
-      radial-gradient(900px 500px at 100% 0%, rgba(139, 92, 246, 0.08), transparent 55%),
-      #070a10;
+    background: #0a0b0d;
+    color: #cbd5e1;
   }
 
   ::-webkit-scrollbar {
@@ -22,53 +20,53 @@
     height: 10px;
   }
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: #0a0b0d;
   }
   ::-webkit-scrollbar-thumb {
-    background: #2a3446;
-    border-radius: 8px;
-    border: 2px solid transparent;
+    background: #343941;
+    border: 2px solid #0a0b0d;
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #3b4759;
+    background: #454c55;
     background-clip: content-box;
   }
 }
 
 @layer components {
+  /* 扁平卡片：实底 + 1px 边框，无阴影无渐变 */
   .card {
-    @apply rounded-xl border border-ink-700/70 bg-ink-850/70;
+    @apply rounded-md border border-ink-700 bg-ink-850;
   }
   .chip {
-    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium;
+    @apply inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-[11px] font-medium;
   }
   .btn {
-    @apply inline-flex select-none items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40;
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-ink-950 hover:bg-brand-500;
+    @apply btn bg-brand-500 text-ink-950 hover:bg-brand-400;
   }
   .btn-ghost {
-    @apply btn border border-ink-600 text-slate-300 hover:bg-ink-800 hover:text-white;
+    @apply btn border border-ink-600 bg-transparent text-slate-300 hover:bg-ink-800 hover:text-slate-100;
   }
   .btn-sm {
     @apply px-2.5 py-1 text-xs;
   }
   .input {
-    @apply w-full rounded-lg border border-ink-600 bg-ink-900/80 px-3 py-2 text-sm text-slate-200 outline-none transition-colors placeholder:text-slate-500 focus:border-brand-500;
+    @apply w-full rounded-md border border-ink-600 bg-ink-900 px-3 py-2 text-sm text-slate-200 outline-none transition-colors placeholder:text-slate-500 focus:border-brand-500;
   }
   .nav-item {
-    @apply flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors;
+    @apply flex w-full items-center gap-3 rounded-md border-l-2 border-transparent px-3 py-2 text-left text-sm transition-colors;
   }
   .kbd {
-    @apply rounded border border-ink-600 bg-ink-900 px-1.5 py-0.5 font-mono text-[10px] text-slate-400;
+    @apply rounded-sm border border-ink-600 bg-ink-900 px-1.5 py-0.5 font-mono text-[10px] text-slate-400;
   }
   .table-head {
     @apply border-b border-ink-700 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500;
   }
   .table-cell {
-    @apply border-b border-ink-800/70 py-2.5 text-sm text-slate-300;
+    @apply border-b border-ink-800 py-2.5 text-sm text-slate-300;
   }
   .mono {
     @apply font-mono text-xs text-slate-400;

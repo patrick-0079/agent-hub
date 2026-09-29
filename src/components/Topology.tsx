@@ -261,15 +261,15 @@ export function Topology({ snapshot, onNavigate }: Props) {
       {/* 图例 */}
       <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1.5 px-1 text-[11px] text-slate-500">
         <span className="flex items-center gap-1.5">
-          <span className="h-0.5 w-6 rounded bg-brand-500/70" />
+          <span className="h-0.5 w-6 rounded bg-brand-900" />
           已发现的 Agent 目标
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-0.5 w-6 rounded bg-accent-500/70" />
+          <span className="h-0.5 w-6 rounded bg-accent-900" />
           Profile 层（规划中）
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full border border-brand-500/70 bg-brand-500/20" />
+          <span className="h-2 w-2 rounded-full border border-brand-500/70 bg-brand-900" />
           点击任意节点可跳转到对应功能页
         </span>
       </div>

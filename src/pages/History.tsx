@@ -102,7 +102,7 @@ export function HistoryPage() {
             manifests.map((item) => (
               <div
                 key={item.path}
-                className="rounded-lg border border-ink-800/70 bg-ink-900/40 px-3 py-2.5"
+                className="rounded-lg border border-ink-800/70 bg-ink-900 px-3 py-2.5"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone="violet" icon="shield">
@@ -156,7 +156,7 @@ export function HistoryPage() {
             backups.map((item) => (
               <div
                 key={item.id}
-                className="rounded-lg border border-ink-800/70 bg-ink-900/40 px-3 py-2.5"
+                className="rounded-lg border border-ink-800/70 bg-ink-900 px-3 py-2.5"
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <Icon name="shield" className="h-3.5 w-3.5 shrink-0 text-brand-400" />
@@ -199,7 +199,7 @@ export function HistoryPage() {
       {/* 回收站入口（详细管理在独立页面） */}
       <Card>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-lg border border-ink-700 bg-ink-850/70 p-2 text-slate-400">
+          <span className="rounded-lg border border-ink-700 bg-ink-850 p-2 text-slate-400">
             <Icon name="trash" className="h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
@@ -242,7 +242,7 @@ export function HistoryPage() {
                 <div key={item.id} className="relative">
                   <span
                     className={`absolute -left-6 top-3 h-[9px] w-[9px] rounded-full border-2 ${
-                      index === 0 ? "border-brand-500 bg-brand-500/30" : "border-ink-600 bg-ink-850"
+                      index === 0 ? "border-brand-500 bg-brand-900" : "border-ink-600 bg-ink-850"
                     }`}
                   />
                   <Card

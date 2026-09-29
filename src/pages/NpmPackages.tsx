@@ -62,7 +62,7 @@ export function NpmPage() {
               { value: "pnpm", label: "pnpm", count: counts.pnpm },
             ]}
           />
-          <div className="w-56 rounded-lg border border-ink-800 bg-ink-900/40 px-3">
+          <div className="w-56 rounded-lg border border-ink-800 bg-ink-900 px-3">
             <Toggle
               checked={onlyMcp}
               onChange={setOnlyMcp}
@@ -96,7 +96,7 @@ export function NpmPage() {
               </thead>
               <tbody>
                 {filtered.map((pkg) => (
-                  <tr key={`${pkg.manager}-${pkg.name}`} className="hover:bg-ink-800/40">
+                  <tr key={`${pkg.manager}-${pkg.name}`} className="hover:bg-ink-800">
                     <td className="table-cell px-3">
                       <div className="flex items-center gap-2">
                         <Icon name="npm" className="h-3.5 w-3.5 shrink-0 text-amber-300" />

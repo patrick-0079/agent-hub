@@ -50,13 +50,14 @@ export function SectionCard({
 
 export type Tone = "teal" | "violet" | "amber" | "rose" | "slate" | "sky";
 
+/** 扁平色调：实底暗色 + 同系边框 + 同系文字，无阴影无发光 */
 const TONE_CLASS: Record<Tone, string> = {
-  teal: "border-brand-500/40 bg-brand-500/10 text-brand-400",
-  violet: "border-accent-500/40 bg-accent-500/10 text-accent-400",
-  amber: "border-amber-500/40 bg-amber-500/10 text-amber-300",
-  rose: "border-rose-500/40 bg-rose-500/10 text-rose-300",
-  slate: "border-ink-600 bg-ink-800/60 text-slate-400",
-  sky: "border-sky-500/40 bg-sky-500/10 text-sky-300",
+  teal: "border-brand-800 bg-brand-900 text-brand-400",
+  violet: "border-accent-800 bg-accent-900 text-accent-400",
+  amber: "border-amber-800/70 bg-amber-950 text-amber-300",
+  rose: "border-rose-800/70 bg-rose-950 text-rose-300",
+  slate: "border-ink-700 bg-ink-800 text-slate-400",
+  sky: "border-sky-800/70 bg-sky-950 text-sky-300",
 };
 
 export function Badge({
@@ -81,9 +82,9 @@ export function Badge({
 export type DotState = "ok" | "warn" | "error" | "idle";
 
 const DOT_CLASS: Record<DotState, string> = {
-  ok: "bg-brand-500 shadow-[0_0_8px_rgba(45,212,191,0.7)]",
-  warn: "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]",
-  error: "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]",
+  ok: "bg-brand-500",
+  warn: "bg-amber-400",
+  error: "bg-rose-500",
   idle: "bg-ink-500",
 };
 
@@ -156,10 +157,10 @@ export function Kpi({
       onClick={onClick}
       disabled={!onClick}
       className={`card group flex items-start gap-3.5 p-4 text-left transition-colors ${
-        onClick ? "hover:border-ink-600 hover:bg-ink-800/70" : "cursor-default"
+        onClick ? "hover:border-ink-600 hover:bg-ink-800" : "cursor-default"
       }`}
     >
-      <span className={`mt-0.5 rounded-lg border p-2 ${TONE_CLASS[tone]}`}>
+      <span className={`mt-0.5 rounded-md border p-2 ${TONE_CLASS[tone]}`}>
         <Icon name={icon} className="h-4 w-4" />
       </span>
       <span className="min-w-0">
@@ -191,7 +192,7 @@ export function Empty({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-      <span className="rounded-full border border-ink-700 bg-ink-800/60 p-3 text-slate-500">
+      <span className="rounded-md border border-ink-700 bg-ink-800 p-3 text-slate-500">
         <Icon name={icon} className="h-5 w-5" />
       </span>
       <p className="text-sm font-medium text-slate-300">{title}</p>
@@ -294,9 +295,9 @@ export function Modal({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-ink-950/75 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-ink-950/85" onClick={onClose} />
       <div
-        className={`relative flex max-h-[88vh] w-full ${width} animate-fade-in flex-col overflow-hidden rounded-2xl border border-ink-700 bg-ink-900 shadow-2xl`}
+        className={`relative flex max-h-[88vh] w-full ${width} animate-fade-in flex-col overflow-hidden rounded-md border border-ink-700 bg-ink-900`}
       >
         <header className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
           <div className="min-w-0">
@@ -342,9 +343,9 @@ export function Drawer({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
-      <div className="absolute inset-0 bg-ink-950/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-ink-950/80" onClick={onClose} />
       <div
-        className={`relative flex h-full w-full ${width} animate-fade-in flex-col border-l border-ink-700 bg-ink-900 shadow-2xl`}
+        className={`relative flex h-full w-full ${width} animate-fade-in flex-col border-l border-ink-700 bg-ink-900`}
       >
         <header className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
           <div className="min-w-0">
@@ -395,12 +396,12 @@ export function Toggle({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full border transition-colors ${
-          checked ? "border-brand-500 bg-brand-500/30" : "border-ink-600 bg-ink-800"
+          checked ? "border-brand-800 bg-brand-500" : "border-ink-600 bg-ink-800"
         }`}
       >
         <span
           className={`absolute top-0.5 h-3.5 w-3.5 rounded-full transition-all ${
-            checked ? "left-[18px] bg-brand-400" : "left-0.5 bg-slate-500"
+            checked ? "left-[18px] bg-ink-950" : "left-0.5 bg-slate-500"
           }`}
         />
       </button>
@@ -443,15 +444,15 @@ export function SegmentedControl<T extends string>({
   onChange: (next: T) => void;
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-ink-700 bg-ink-900/70 p-0.5">
+    <div className="inline-flex rounded-md border border-ink-700 bg-ink-900 p-0.5">
       {options.map((opt) => (
         <button
           key={opt.value}
           type="button"
           onClick={() => onChange(opt.value)}
-          className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+          className={`rounded-sm px-3 py-1 text-xs font-medium transition-colors ${
             value === opt.value
-              ? "bg-ink-700 text-slate-100"
+              ? "bg-ink-800 text-slate-100"
               : "text-slate-400 hover:text-slate-200"
           }`}
         >
@@ -484,7 +485,7 @@ export function PlannedPage({
     <div className="mx-auto max-w-4xl space-y-4">
       <Card className="border-dashed">
         <div className="flex items-start gap-4">
-          <span className="rounded-xl border border-accent-500/40 bg-accent-500/10 p-3 text-accent-400">
+          <span className="rounded-md border border-accent-800 bg-accent-900 p-3 text-accent-400">
             <Icon name={icon} className="h-5 w-5" />
           </span>
           <div>
@@ -503,7 +504,7 @@ export function PlannedPage({
         {bullets.map((b) => (
           <Card key={b.title} className="border-ink-700/60">
             <div className="flex items-start gap-3">
-              <span className="mt-0.5 rounded-md border border-ink-600 bg-ink-800/70 p-1.5 text-slate-400">
+              <span className="mt-0.5 rounded-md border border-ink-600 bg-ink-800 p-1.5 text-slate-400">
                 <Icon name="check" className="h-3.5 w-3.5" />
               </span>
               <div>

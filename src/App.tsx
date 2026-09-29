@@ -77,6 +77,7 @@ export default function App() {
   const snapshot = useApp((s) => s.snapshot);
   const scanning = useApp((s) => s.scanning);
   const banner = useApp((s) => s.banner);
+  const host = useApp((s) => s.host);
   const scan = useApp((s) => s.scan);
   const setBanner = useApp((s) => s.setBanner);
 
@@ -109,8 +110,8 @@ export default function App() {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         {/* 顶栏 */}
-        <header className="flex shrink-0 items-center gap-4 border-b border-ink-700/70 bg-ink-900/50 px-6 py-3.5">
-          <span className="rounded-lg border border-ink-700 bg-ink-850/70 p-2 text-brand-400">
+        <header className="flex shrink-0 items-center gap-4 border-b border-ink-700 bg-ink-900 px-6 py-3.5">
+          <span className="rounded-md border border-ink-700 bg-ink-850 p-2 text-brand-400">
             <Icon name={meta.icon} className="h-4 w-4" />
           </span>
           <div className="min-w-0">
@@ -118,9 +119,11 @@ export default function App() {
             <p className="truncate text-xs text-slate-500">{meta.subtitle}</p>
           </div>
           <div className="ml-auto flex items-center gap-3">
-            <Badge tone="teal" icon="sparkle">
-              M0 · 侦察与可视化
-            </Badge>
+            {host && (
+              <Badge tone="slate" className="font-mono">
+                v{host.appVersion}
+              </Badge>
+            )}
             <span className="hidden text-[11px] text-slate-500 md:block">
               上次扫描 {relativeTime(snapshot?.scannedAt)}
             </span>
@@ -142,14 +145,14 @@ export default function App() {
 
         {/* 提示条 */}
         {banner && (
-          <div className="flex shrink-0 items-center gap-3 border-b border-amber-500/30 bg-amber-500/10 px-6 py-2.5 text-xs text-amber-200">
+          <div className="flex shrink-0 items-center gap-3 border-b border-amber-800/70 bg-amber-950 px-6 py-2.5 text-xs text-amber-300">
             <Icon name="alert" className="h-4 w-4 shrink-0" />
             <span className="min-w-0 flex-1">{banner}</span>
             {!snapshot && (
               <button
                 type="button"
                 onClick={() => void scan()}
-                className="rounded-md border border-amber-500/40 px-2 py-0.5 hover:bg-amber-500/20"
+                className="rounded-sm border border-amber-700 px-2 py-0.5 hover:bg-amber-900"
               >
                 重试扫描
               </button>
@@ -157,7 +160,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setBanner(null)}
-              className="rounded-md p-1 hover:bg-amber-500/20"
+              className="rounded-sm p-1 hover:bg-amber-900"
             >
               <Icon name="close" className="h-3.5 w-3.5" />
             </button>

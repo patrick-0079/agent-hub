@@ -14,7 +14,7 @@ export function DiffView({
 }) {
   if (!diff.trim()) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-ink-800 bg-ink-950/40 px-3 py-4 text-xs text-slate-500">
+      <div className="flex items-center gap-2 rounded-lg border border-ink-800 bg-ink-950 px-3 py-4 text-xs text-slate-500">
         <Icon name="check" className="h-3.5 w-3.5 text-brand-400" />
         {emptyHint}
       </div>
@@ -23,7 +23,7 @@ export function DiffView({
 
   const lines = diff.replace(/\n$/, "").split("\n");
   return (
-    <div className={`${maxHeight} overflow-auto rounded-lg border border-ink-800 bg-ink-950/60`}>
+    <div className={`${maxHeight} overflow-auto rounded-lg border border-ink-800 bg-ink-950`}>
       <pre className="min-w-full p-0 text-[11.5px] leading-[1.55]">
         {lines.map((line, index) => {
           const kind = line.startsWith("+")
@@ -35,11 +35,11 @@ export function DiffView({
                 : "ctx";
           const cls =
             kind === "add"
-              ? "bg-brand-500/10 text-brand-300"
+              ? "bg-brand-900 text-brand-300"
               : kind === "del"
-                ? "bg-rose-500/10 text-rose-300"
+                ? "bg-rose-950 text-rose-300"
                 : kind === "meta"
-                  ? "bg-ink-800/60 text-slate-500"
+                  ? "bg-ink-800 text-slate-500"
                   : "text-slate-400";
           return (
             <div key={index} className={`flex ${cls}`}>

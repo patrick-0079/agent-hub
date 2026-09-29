@@ -248,7 +248,7 @@ export function TrashPage() {
           />
 
           {selected.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-700 bg-ink-900/60 px-3 py-1.5">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-700 bg-ink-900 px-3 py-1.5">
               <span className="text-xs text-slate-300">已选 {selected.length} 条</span>
               <button
                 type="button"
@@ -270,7 +270,7 @@ export function TrashPage() {
               </button>
               <button
                 type="button"
-                className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-500/10"
+                className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-950"
                 onClick={() => void beginPurge(`永久删除选中的 ${selected.length} 个条目`, selected)}
               >
                 <Icon name="trash" className="h-3.5 w-3.5" />
@@ -298,7 +298,7 @@ export function TrashPage() {
             </button>
             <button
               type="button"
-              className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-500/10"
+              className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-950"
               onClick={() => void beginOlderThan(0)}
               disabled={entries.length === 0}
             >
@@ -310,7 +310,7 @@ export function TrashPage() {
 
         {/* 一次性恢复结果 */}
         {quickResult && (
-          <div className="rounded-lg border border-ink-700 bg-ink-900/40 p-3">
+          <div className="rounded-lg border border-ink-700 bg-ink-900 p-3">
             <div className="mb-2 flex items-center gap-2">
               <span className="text-xs font-medium text-slate-300">上次操作结果</span>
               <button
@@ -353,7 +353,7 @@ export function TrashPage() {
               return (
                 <div
                   key={entry.name}
-                  className="rounded-lg border border-ink-800/70 bg-ink-900/40 px-3 py-2.5 transition-colors hover:bg-ink-800/40"
+                  className="rounded-lg border border-ink-800/70 bg-ink-900 px-3 py-2.5 transition-colors hover:bg-ink-800"
                 >
                   <div className="flex flex-wrap items-center gap-2.5">
                     <input
@@ -400,7 +400,7 @@ export function TrashPage() {
                     </button>
                     <button
                       type="button"
-                      className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-500/10"
+                      className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-950"
                       onClick={() => void beginPurge("永久删除回收站条目", [entry.name])}
                     >
                       <Icon name="trash" className="h-3.5 w-3.5" />
@@ -458,7 +458,7 @@ export function TrashPage() {
                 </thead>
                 <tbody>
                   {detail.items.map((item) => (
-                    <tr key={item.stored} className="hover:bg-ink-800/40">
+                    <tr key={item.stored} className="hover:bg-ink-800">
                       <td className="table-cell px-3">
                         <input
                           type="checkbox"

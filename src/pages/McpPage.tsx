@@ -407,7 +407,7 @@ export function McpPage() {
                 </button>
                 <button
                   type="button"
-                  className="btn border border-accent-500/40 btn-sm text-accent-400 hover:bg-accent-500/10"
+                  className="btn border border-accent-500/40 btn-sm text-accent-400 hover:bg-accent-900"
                   onClick={() => setSyncOpen(true)}
                   disabled={enabledCount === 0}
                 >
@@ -460,12 +460,12 @@ export function McpPage() {
                   key={res.id}
                   className={`rounded-lg border px-3.5 py-3 transition-colors ${
                     res.enabled
-                      ? "border-ink-800/70 bg-ink-900/40"
-                      : "border-ink-800/50 bg-ink-950/40 opacity-70"
+                      ? "border-ink-800/70 bg-ink-900"
+                      : "border-ink-800/50 bg-ink-950 opacity-70"
                   }`}
                 >
                   <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="rounded-md border border-sky-500/30 bg-sky-500/10 p-1.5 text-sky-300">
+                    <span className="rounded-md border border-sky-500/30 bg-sky-950 p-1.5 text-sky-300">
                       <Icon name="mcp" className="h-3.5 w-3.5" />
                     </span>
                     <span className="min-w-0 flex-1">
@@ -513,7 +513,7 @@ export function McpPage() {
                       </button>
                       <button
                         type="button"
-                        className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-500/10"
+                        className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-950"
                         onClick={() => void remove(res)}
                       >
                         <Icon name="close" className="h-3.5 w-3.5" />
@@ -558,9 +558,9 @@ export function McpPage() {
                 {filteredServers.map((server) => {
                   const isOpen = expanded === server.id;
                   return (
-                    <div key={server.id} className="rounded-lg border border-ink-800/70 bg-ink-900/40">
+                    <div key={server.id} className="rounded-lg border border-ink-800/70 bg-ink-900">
                       <div className="flex items-center gap-3 px-3.5 py-3">
-                        <span className="rounded-md border border-sky-500/30 bg-sky-500/10 p-1.5 text-sky-300">
+                        <span className="rounded-md border border-sky-500/30 bg-sky-950 p-1.5 text-sky-300">
                           <Icon name="mcp" className="h-3.5 w-3.5" />
                         </span>
                         <div className="min-w-0 flex-1">
@@ -620,14 +620,14 @@ export function McpPage() {
                               {server.envKeys.map((key) => (
                                 <span
                                   key={key}
-                                  className="rounded border border-ink-700 bg-ink-950/60 px-1.5 py-0.5 font-mono text-[10.5px] text-slate-400"
+                                  className="rounded border border-ink-700 bg-ink-950 px-1.5 py-0.5 font-mono text-[10.5px] text-slate-400"
                                 >
                                   {key}
                                 </span>
                               ))}
                             </div>
                           )}
-                          <pre className="max-h-64 overflow-auto rounded-lg border border-ink-800 bg-ink-950/70 p-3 text-[11px] leading-relaxed text-slate-300">
+                          <pre className="max-h-64 overflow-auto rounded-lg border border-ink-800 bg-ink-950 p-3 text-[11px] leading-relaxed text-slate-300">
                             {JSON.stringify(server.raw, null, 2)}
                           </pre>
                         </div>
@@ -720,13 +720,13 @@ export function McpPage() {
       >
         <div className="space-y-1.5">
           {importError && (
-            <div className="mb-2 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2.5 text-xs text-rose-200">
+            <div className="mb-2 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-950 px-3 py-2.5 text-xs text-rose-200">
               <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="leading-relaxed">导入失败：{importError}</span>
             </div>
           )}
           {importSummary && (
-            <div className="mb-2 flex items-start gap-2 rounded-lg border border-brand-500/40 bg-brand-500/10 px-3 py-2.5 text-xs text-brand-300">
+            <div className="mb-2 flex items-start gap-2 rounded-lg border border-brand-500/40 bg-brand-900 px-3 py-2.5 text-xs text-brand-300">
               <Icon name="check" className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="leading-relaxed">{importSummary}</span>
             </div>
@@ -743,7 +743,7 @@ export function McpPage() {
           {servers.map((server) => (
             <label
               key={server.id}
-              className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-ink-800 bg-ink-900/40 px-3 py-2 hover:bg-ink-800/50"
+              className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-ink-800 bg-ink-900 px-3 py-2 hover:bg-ink-800"
             >
               <input
                 type="checkbox"

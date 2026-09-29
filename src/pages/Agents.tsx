@@ -193,7 +193,7 @@ function EvidenceRow({ item }: { item: AgentEvidence }) {
   return (
     <div
       className={`flex items-center gap-2.5 rounded-md border px-2.5 py-1.5 ${
-        item.found ? "border-ink-800 bg-ink-900/40" : "border-ink-800/50 bg-ink-950/30"
+        item.found ? "border-ink-800 bg-ink-900" : "border-ink-800/50 bg-ink-950"
       }`}
     >
       <Icon

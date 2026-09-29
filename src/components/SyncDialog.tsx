@@ -206,7 +206,7 @@ export function SyncDialog({
               {plan.warnings.map((w, i) => (
                 <div
                   key={i}
-                  className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs text-amber-200"
+                  className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-950 px-3 py-2 text-xs text-amber-200"
                 >
                   <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   {w}
@@ -224,8 +224,8 @@ export function SyncDialog({
                 onClick={() => setActiveFile(index)}
                 className={`rounded-lg border px-2.5 py-1.5 text-left text-[11px] transition-colors ${
                   index === activeFile
-                    ? "border-brand-500/50 bg-brand-500/10 text-brand-300"
-                    : "border-ink-700 bg-ink-900/50 text-slate-400 hover:bg-ink-800"
+                    ? "border-brand-500/50 bg-brand-900 text-brand-300"
+                    : "border-ink-700 bg-ink-900 text-slate-400 hover:bg-ink-800"
                 }`}
               >
                 <span className="block font-medium">{target.agentName}</span>
@@ -300,8 +300,8 @@ export function SyncDialog({
                   key={c.id}
                   className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 transition-colors ${
                     selected.includes(c.id)
-                      ? "border-brand-500/40 bg-brand-500/5"
-                      : "border-ink-800 bg-ink-900/40 hover:bg-ink-800/50"
+                      ? "border-brand-500/40 bg-brand-900"
+                      : "border-ink-800 bg-ink-900 hover:bg-ink-800"
                   }`}
                 >
                   <input
@@ -350,7 +350,7 @@ function TargetDetail({ target }: { target: SyncPlan["targets"][number] }) {
   const [showChanges, setShowChanges] = useState(true);
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-800 bg-ink-900/40 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-800 bg-ink-900 px-3 py-2">
         <span className="mono min-w-0 flex-1 truncate" title={target.file}>
           {target.file}
         </span>
@@ -368,12 +368,12 @@ function TargetDetail({ target }: { target: SyncPlan["targets"][number] }) {
       </div>
 
       {!target.supported ? (
-        <div className="rounded-lg border border-rose-500/25 bg-rose-500/5 px-3 py-2.5 text-xs text-rose-200">
+        <div className="rounded-lg border border-rose-500/25 bg-rose-950 px-3 py-2.5 text-xs text-rose-200">
           {target.reason}
         </div>
       ) : target.kind === "skill" ? (
         <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-800 bg-ink-900/40 px-3 py-2 text-[11px]">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-ink-800 bg-ink-900 px-3 py-2 text-[11px]">
             <Badge tone="violet" icon="skills">
               {target.strategy === "skill-copy" ? "拷贝部署" : "链接部署"}
             </Badge>
@@ -389,15 +389,15 @@ function TargetDetail({ target }: { target: SyncPlan["targets"][number] }) {
             </span>
             {target.reason && <span className="text-slate-500">{target.reason}</span>}
           </div>
-          <div className="max-h-[420px] space-y-1 overflow-auto rounded-lg border border-ink-800 bg-ink-950/40 p-2">
+          <div className="max-h-[420px] space-y-1 overflow-auto rounded-lg border border-ink-800 bg-ink-950 p-2">
             {target.changes.map((change, index) => (
               <div key={`${change.key}-${index}`} className="flex items-start gap-2 px-2 py-1.5">
                 <span
                   className={`mt-0.5 w-12 shrink-0 rounded px-1 text-center font-mono text-[10px] ${
                     change.kind === "add"
-                      ? "bg-brand-500/15 text-brand-300"
+                      ? "bg-brand-900 text-brand-300"
                       : change.kind === "skipped"
-                        ? "bg-slate-500/15 text-slate-400"
+                        ? "bg-ink-800 text-slate-400"
                         : "bg-ink-800 text-slate-500"
                   }`}
                 >
@@ -436,7 +436,7 @@ function TargetDetail({ target }: { target: SyncPlan["targets"][number] }) {
           </div>
 
           {showChanges ? (
-            <div className="max-h-[420px] space-y-1 overflow-auto rounded-lg border border-ink-800 bg-ink-950/40 p-2">
+            <div className="max-h-[420px] space-y-1 overflow-auto rounded-lg border border-ink-800 bg-ink-950 p-2">
               {target.changes.length === 0 && (
                 <p className="px-2 py-3 text-xs text-slate-500">无键级变更</p>
               )}
@@ -445,11 +445,11 @@ function TargetDetail({ target }: { target: SyncPlan["targets"][number] }) {
                   <span
                     className={`mt-0.5 w-14 shrink-0 rounded px-1 text-center font-mono text-[10px] ${
                       change.kind === "add"
-                        ? "bg-brand-500/15 text-brand-300"
+                        ? "bg-brand-900 text-brand-300"
                         : change.kind === "update"
-                          ? "bg-amber-500/15 text-amber-300"
+                          ? "bg-amber-950 text-amber-300"
                           : change.kind === "remove"
-                            ? "bg-rose-500/15 text-rose-300"
+                            ? "bg-rose-950 text-rose-300"
                             : "bg-ink-800 text-slate-500"
                     }`}
                   >
