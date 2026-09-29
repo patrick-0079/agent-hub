@@ -149,6 +149,9 @@ pub struct McpServerFound {
     pub args: Vec<String>,
     pub url: Option<String>,
     pub env_keys: Vec<String>,
+    /// http/sse 条目里声明的请求头键名（只读键名，值不进快照）
+    #[serde(default)]
+    pub header_keys: Vec<String>,
     pub raw: serde_json::Value,
 }
 
@@ -306,6 +309,9 @@ pub struct McpResource {
     pub command: String,
     pub args: Vec<String>,
     pub env: Vec<EnvPair>,
+    /// http/sse 的请求头（值支持 `%VAR%` / `$VAR` 引用，握手前瞬间展开）
+    #[serde(default)]
+    pub headers: Vec<EnvPair>,
     pub url: String,
     pub enabled: bool,
     pub notes: String,

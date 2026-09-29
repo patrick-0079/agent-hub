@@ -35,6 +35,7 @@ function emptyResource(): McpResource {
     command: "",
     args: [],
     env: [],
+    headers: [],
     url: "",
     enabled: true,
     notes: "",
@@ -58,6 +59,7 @@ function toResource(found: {
   args: string[];
   url: string | null;
   envKeys: string[];
+  headerKeys: string[];
   sourceAgent: string;
 }): McpResource {
   return {
@@ -67,6 +69,7 @@ function toResource(found: {
     command: found.command ?? "",
     args: found.args,
     env: found.envKeys.map((key) => ({ key, value: "" })),
+    headers: found.headerKeys.map((key) => ({ key, value: "" })),
     url: found.url ?? "",
     enabled: true,
     notes: `从 ${found.sourceAgent} 导入`,
@@ -110,6 +113,7 @@ function ResourceForm({
           .map((line) => line.trim())
           .filter(Boolean),
         env: draft.env.filter((pair) => pair.key.trim()),
+        headers: draft.headers.filter((pair) => pair.key.trim()),
       };
       onSaved(await api.mcpSave(payload));
       onClose();
@@ -124,6 +128,12 @@ function ResourceForm({
     setDraft((prev) => ({
       ...prev,
       env: prev.env.map((pair, i) => (i === index ? { ...pair, ...patch } : pair)),
+    }));
+
+  const updateHeader = (index: number, patch: Partial<EnvPair>) =>
+    setDraft((prev) => ({
+      ...prev,
+      headers: prev.headers.map((pair, i) => (i === index ? { ...pair, ...patch } : pair)),
     }));
 
   return (
@@ -257,6 +267,59 @@ function ResourceForm({
             )}
           </div>
         </div>
+
+        {draft.transport !== "stdio" && (
+          <div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-slate-400">请求头（http/sse）</label>
+              <span className="text-[10.5px] text-slate-500">
+                认证等自定义头，值可写 <span className="font-mono">%VAR%</span> 引用环境变量；握手测试会带上它们
+              </span>
+              <button
+                type="button"
+                className="btn-ghost btn-sm ml-auto"
+                onClick={() =>
+                  setDraft({ ...draft, headers: [...draft.headers, { key: "", value: "" }] })
+                }
+              >
+                <Icon name="plus" className="h-3.5 w-3.5" />
+                添加
+              </button>
+            </div>
+            <div className="mt-2 space-y-1.5">
+              {draft.headers.map((pair, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <input
+                    value={pair.key}
+                    onChange={(e) => updateHeader(index, { key: e.target.value })}
+                    placeholder="Header-Name"
+                    className="input font-mono text-xs"
+                  />
+                  <input
+                    value={pair.value}
+                    onChange={(e) => updateHeader(index, { value: e.target.value })}
+                    placeholder="value 或 %ENV_VAR%"
+                    className="input font-mono text-xs"
+                  />
+                  <button
+                    type="button"
+                    className="rounded-md p-1.5 text-slate-500 hover:bg-ink-800 hover:text-rose-300"
+                    onClick={() =>
+                      setDraft({ ...draft, headers: draft.headers.filter((_, i) => i !== index) })
+                    }
+                  >
+                    <Icon name="close" className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+              {draft.headers.length === 0 && (
+                <p className="text-xs text-slate-600">
+                  未设置请求头（需要认证的远端 MCP 在这里加 Authorization 等）
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="border-t border-ink-800 pt-2">
           <Toggle
@@ -548,6 +611,11 @@ export function McpPage() {
                             {res.env.length} 个环境变量
                           </Badge>
                         )}
+                        {res.headers.length > 0 && (
+                          <Badge tone="sky" icon="shield">
+                            {res.headers.length} 个请求头
+                          </Badge>
+                        )}
                       </span>
                       <span
                         className="mono mt-0.5 block truncate"
@@ -680,6 +748,11 @@ export function McpPage() {
                             {server.envKeys.length > 0 && (
                               <Badge tone="amber" icon="lock">
                                 {server.envKeys.length} 个环境变量
+                              </Badge>
+                            )}
+                            {server.headerKeys.length > 0 && (
+                              <Badge tone="sky" icon="shield">
+                                {server.headerKeys.length} 个请求头
                               </Badge>
                             )}
                           </div>

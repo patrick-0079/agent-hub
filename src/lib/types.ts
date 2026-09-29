@@ -96,6 +96,8 @@ export interface McpServerFound {
   args: string[];
   url: string | null;
   envKeys: string[];
+  /** http/sse 条目里声明的请求头键名（只读键名，值不进快照） */
+  headerKeys: string[];
   raw: unknown;
 }
 
@@ -247,6 +249,8 @@ export interface McpResource {
   command: string;
   args: string[];
   env: EnvPair[];
+  /** http/sse 请求头（值支持 %VAR% / $VAR 引用） */
+  headers: EnvPair[];
   url: string;
   enabled: boolean;
   notes: string;

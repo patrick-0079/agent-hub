@@ -199,6 +199,13 @@ fn build(
         .map(|obj| obj.keys().cloned().collect::<Vec<_>>())
         .unwrap_or_default();
 
+    // http/sse 请求头：只提取键名（值可能是凭证，与 env 同一纪律不读值）
+    let header_keys = entry
+        .get("headers")
+        .and_then(|v| v.as_object())
+        .map(|obj| obj.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+
     let file_str = path.to_string_lossy().to_string();
     McpServerFound {
         id: format!("{}::{}::{}", agent_id, file_str, name),
@@ -211,6 +218,7 @@ fn build(
         args,
         url,
         env_keys,
+        header_keys,
         raw: sanitize(&entry),
     }
 }

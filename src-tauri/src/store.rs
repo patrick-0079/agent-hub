@@ -183,6 +183,7 @@ fn migrate(conn: &Connection) {
         ("mcp_server", "notes", "notes TEXT NOT NULL DEFAULT ''"),
         ("mcp_server", "created_at", "created_at TEXT NOT NULL DEFAULT ''"),
         ("mcp_server", "updated_at", "updated_at TEXT NOT NULL DEFAULT ''"),
+        ("mcp_server", "headers_json", "headers_json TEXT NOT NULL DEFAULT '[]'"),
     ];
     for (table, column, ddl) in additions {
         if !has_column(conn, table, column) {
@@ -254,7 +255,7 @@ impl Store {
             Err(_) => return Vec::new(),
         };
         let mut stmt = match conn.prepare(
-            "SELECT id, name, transport, command, args_json, env_json, url, enabled, notes, health
+            "SELECT id, name, transport, command, args_json, env_json, url, enabled, notes, health, headers_json
              FROM mcp_server ORDER BY name COLLATE NOCASE",
         ) {
             Ok(s) => s,
@@ -266,6 +267,9 @@ impl Store {
             let health_raw: String = row
                 .get::<_, Option<String>>(9)?
                 .unwrap_or_else(|| "unknown".to_string());
+            let headers_raw: String = row
+                .get::<_, Option<String>>(10)?
+                .unwrap_or_else(|| "[]".to_string());
             Ok(crate::model::McpResource {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -273,6 +277,7 @@ impl Store {
                 command: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
                 args: serde_json::from_str(&args_json).unwrap_or_default(),
                 env: serde_json::from_str(&env_json).unwrap_or_default(),
+                headers: serde_json::from_str(&headers_raw).unwrap_or_default(),
                 url: row.get::<_, Option<String>>(6)?.unwrap_or_default(),
                 enabled: row.get::<_, i64>(7)? != 0,
                 notes: row.get(8)?,
@@ -290,14 +295,15 @@ impl Store {
         let conn = self.conn()?;
         let args_json = serde_json::to_string(&res.args)?;
         let env_json = serde_json::to_string(&res.env)?;
+        let headers_json = serde_json::to_string(&res.headers)?;
         let now = crate::util::now_human();
         if res.id > 0 {
             conn.execute(
                 "UPDATE mcp_server SET name=?1, transport=?2, command=?3, args_json=?4,
-                   env_json=?5, url=?6, enabled=?7, notes=?8, updated_at=?9 WHERE id=?10",
+                   env_json=?5, url=?6, enabled=?7, notes=?8, updated_at=?9, headers_json=?10 WHERE id=?11",
                 params![
                     res.name, res.transport, res.command, args_json, env_json, res.url,
-                    res.enabled as i64, res.notes, now, res.id
+                    res.enabled as i64, res.notes, now, headers_json, res.id
                 ],
             )?;
             return Ok(res.id);
@@ -312,21 +318,21 @@ impl Store {
         {
             conn.execute(
                 "UPDATE mcp_server SET transport=?1, command=?2, args_json=?3, env_json=?4,
-                   url=?5, enabled=?6, notes=?7, updated_at=?8 WHERE id=?9",
+                   url=?5, enabled=?6, notes=?7, updated_at=?8, headers_json=?9 WHERE id=?10",
                 params![
                     res.transport, res.command, args_json, env_json, res.url,
-                    res.enabled as i64, res.notes, now, existing
+                    res.enabled as i64, res.notes, now, headers_json, existing
                 ],
             )?;
             return Ok(existing);
         }
         conn.execute(
             "INSERT INTO mcp_server
-               (name, transport, command, args_json, env_json, url, enabled, notes, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
+               (name, transport, command, args_json, env_json, url, enabled, notes, created_at, updated_at, headers_json)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10)",
             params![
                 res.name, res.transport, res.command, args_json, env_json, res.url,
-                res.enabled as i64, res.notes, now
+                res.enabled as i64, res.notes, now, headers_json
             ],
         )?;
         Ok(conn.last_insert_rowid())

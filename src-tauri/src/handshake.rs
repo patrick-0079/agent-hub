@@ -329,11 +329,20 @@ fn handshake_http(res: &McpResource, proxy: &str) -> McpHandshakeResult {
     let url = res.url.trim().to_string();
     let body = init_request().to_string();
 
-    let response = agent
+    let mut request = agent
         .post(&url)
         .set("Content-Type", "application/json")
-        .set("Accept", "application/json, text/event-stream")
-        .send_string(&body);
+        .set("Accept", "application/json, text/event-stream");
+    // 认证等自定义头：值里的 %VAR% / $VAR 引用在发送前瞬间展开
+    for pair in &res.headers {
+        let key = pair.key.trim();
+        if key.is_empty() {
+            continue;
+        }
+        request = request.set(key, &crate::util::expand_value(&pair.value));
+    }
+
+    let response = request.send_string(&body);
 
     let latency_ms = started.elapsed().as_millis() as u64;
     match response {

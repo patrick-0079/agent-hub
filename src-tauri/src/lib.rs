@@ -134,6 +134,7 @@ pub fn cli_db_check() {
             key: "PROBE".to_string(),
             value: "%PROBE%".to_string(),
         }],
+        headers: vec![],
         url: String::new(),
         enabled: true,
         notes: "自检临时条目".to_string(),
@@ -684,6 +685,7 @@ pub fn cli_self_test() {
             command: "npx".into(),
             args: vec!["-y".into(), "server-a".into()],
             env: vec![],
+            headers: vec![],
             url: String::new(),
             enabled: true,
             notes: String::new(),
@@ -832,6 +834,7 @@ pub fn cli_self_test() {
             command: "should-not-overwrite".into(),
             args: vec![],
             env: vec![],
+            headers: vec![],
             url: String::new(),
             enabled: true,
             notes: String::new(),
@@ -896,6 +899,7 @@ pub fn cli_self_test() {
             command: "uvx".into(),
             args: vec!["mcp-server-fetch".into()],
             env: vec![],
+            headers: vec![],
             url: String::new(),
             enabled: true,
             notes: String::new(),
@@ -974,6 +978,7 @@ pub fn cli_self_test() {
             command: "npx".into(),
             args: vec!["-y".into(), "@modelcontextprotocol/server-filesystem".into()],
             env: vec![],
+            headers: vec![],
             enabled: true,
             ..Default::default()
         }];
@@ -1239,6 +1244,7 @@ pub fn cli_self_test() {
                 key: "TOKEN".into(),
                 value: "%MY_TOKEN%".into(),
             }],
+            headers: vec![],
             url: String::new(),
             enabled: true,
             notes: "从扫描导入".into(),
@@ -1923,7 +1929,12 @@ pub fn cli_self_test() {
         use crate::handshake::handshake;
         use crate::model::{EnvPair, McpResource};
 
-        let mk = |transport: &str, command: &str, args: Vec<String>, url: &str, env: Vec<EnvPair>| {
+        let mk = |transport: &str,
+                  command: &str,
+                  args: Vec<String>,
+                  url: &str,
+                  env: Vec<EnvPair>,
+                  headers: Vec<EnvPair>| {
             McpResource {
                 id: 0,
                 name: "sandbox-mcp".into(),
@@ -1931,6 +1942,7 @@ pub fn cli_self_test() {
                 command: command.into(),
                 args,
                 env,
+                headers,
                 url: url.into(),
                 enabled: true,
                 notes: String::new(),
@@ -1956,6 +1968,7 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
                         key: "SELFTEST_TOKEN".into(),
                         value: "%AGENTHUB_SELFTEST_TOKEN%".into(),
                     }],
+                    vec![],
                 );
                 let r = handshake(&res, "");
                 check!(
@@ -1980,6 +1993,7 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
                     vec!["-e".into(), "setInterval(function(){},1000)".into()],
                     "",
                     vec![],
+                    vec![],
                 );
                 let r = handshake(&silent, "");
                 check!(r.status == "timeout", "静默进程 → timeout（{}）", r.message);
@@ -1990,7 +2004,7 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
         }
 
         // 3) 命令不存在 → 明确报「找不到命令」
-        let r = handshake(&mk("stdio", "agenthub-no-such-cmd-xyz", vec![], "", vec![]), "");
+        let r = handshake(&mk("stdio", "agenthub-no-such-cmd-xyz", vec![], "", vec![], vec![]), "");
         check!(
             r.status == "error" && r.message.contains("找不到命令"),
             "命令不存在 → error（{}）",
@@ -2005,7 +2019,7 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
             )
         }
         let base = spawn_mock_server(mcp_http_router, 2);
-        let r = handshake(&mk("http", "", vec![], &base, vec![]), "");
+        let r = handshake(&mk("http", "", vec![], &base, vec![], vec![]), "");
         check!(
             r.status == "ok"
                 && r.protocol_version.as_deref() == Some("2025-03-26")
@@ -2022,7 +2036,7 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
             p
         };
         let r = handshake(
-            &mk("http", "", vec![], &format!("http://127.0.0.1:{}", dead_port), vec![]),
+            &mk("http", "", vec![], &format!("http://127.0.0.1:{}", dead_port), vec![], vec![]),
             "",
         );
         check!(r.status == "error", "http 端口关闭 → error（{}）", r.message);
@@ -2172,6 +2186,165 @@ else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result
             read_back.balance.currency
         );
         let _ = std::fs::remove_file(sandbox_root.join("selftest-balance.db"));
+    }
+
+    println!("[25] MCP http 认证头（headers）握手与落库");
+    {
+        use crate::handshake::handshake;
+        use crate::model::{EnvPair, McpResource};
+        // 本节内 base 被 mock 地址（String）遮蔽，沙箱根目录单独留一份
+        let sandbox_root = base.clone();
+
+        // 认证 mock：请求头带对 Authorization 才回 JSON-RPC，否则 401
+        fn auth_mock_server(expected: &'static str, max_connections: usize) -> String {
+            use std::io::{Read, Write};
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let port = listener.local_addr().unwrap().port();
+            std::thread::spawn(move || {
+                for _ in 0..max_connections {
+                    let Ok((mut stream, _)) = listener.accept() else {
+                        break;
+                    };
+                    let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(600)));
+                    let mut req = Vec::new();
+                    let mut chunk = [0u8; 4096];
+                    loop {
+                        match stream.read(&mut chunk) {
+                            Ok(0) => break,
+                            Ok(n) => {
+                                req.extend_from_slice(&chunk[..n]);
+                                if req.windows(4).any(|w| w == b"\r\n\r\n") {
+                                    break;
+                                }
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    let head = String::from_utf8_lossy(&req).to_string();
+                    let authorized = head
+                        .lines()
+                        .any(|l| l.eq_ignore_ascii_case(&format!("Authorization: Bearer {}", expected)));
+                    let response = if authorized {
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","serverInfo":{"name":"auth-mock","version":"1.0"}}}"#.len(),
+                            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","serverInfo":{"name":"auth-mock","version":"1.0"}}}"#
+                        )
+                    } else {
+                        format!(
+                            "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                            r#"{"error":"missing authorization"}"#.len(),
+                            r#"{"error":"missing authorization"}"#
+                        )
+                    };
+                    let _ = stream.write_all(response.as_bytes());
+                }
+            });
+            format!("http://127.0.0.1:{}", port)
+        }
+
+        // 1) 带正确认证头 → 握手成功
+        let base = auth_mock_server("sk-header-secret-0123456789", 4);
+        let res = McpResource {
+            id: 0,
+            name: "auth-mcp".into(),
+            transport: "http".into(),
+            command: String::new(),
+            args: vec![],
+            env: vec![],
+            headers: vec![EnvPair {
+                key: "Authorization".into(),
+                value: "Bearer sk-header-secret-0123456789".into(),
+            }],
+            url: base.clone(),
+            enabled: true,
+            notes: String::new(),
+            health: Default::default(),
+        };
+        let r = handshake(&res, "");
+        check!(
+            r.status == "ok" && r.server_name.as_deref() == Some("auth-mock"),
+            "带认证头的 http 握手成功（{}）",
+            r.message
+        );
+
+        // 2) 无认证头 → HTTP 401
+        let no_header = McpResource { headers: vec![], ..res.clone() };
+        let r = handshake(&no_header, "");
+        check!(
+            r.status == "error" && r.message.contains("401"),
+            "无认证头 → HTTP 401（{}）",
+            r.message
+        );
+
+        // 3) 认证头值支持 %VAR% 引用（发送前展开）
+        std::env::set_var("AGENTHUB_HEADER_TOKEN", "sk-header-secret-0123456789");
+        let var_header = McpResource {
+            headers: vec![EnvPair {
+                key: "Authorization".into(),
+                value: "Bearer %AGENTHUB_HEADER_TOKEN%".into(),
+            }],
+            ..res.clone()
+        };
+        let r = handshake(&var_header, "");
+        check!(
+            r.status == "ok",
+            "认证头 %VAR% 引用在发送前展开（serverInfo.name = {:?}）",
+            r.server_name
+        );
+
+        // 4) headers 落库往返（mcp_server.headers_json 列）
+        let store =
+            crate::store::Store::open(&sandbox_root.join("selftest-headers.db")).unwrap();
+        let saved = store.mcp_upsert(&res).unwrap();
+        let read_back = store
+            .mcp_list()
+            .into_iter()
+            .find(|m| m.id == saved)
+            .expect("读回失败");
+        check!(
+            read_back.headers.len() == 1
+                && read_back.headers[0].key == "Authorization"
+                && read_back.headers[0].value.contains("Bearer"),
+            "headers 落库 → 读回一致（{} 条）",
+            read_back.headers.len()
+        );
+        let _ = std::fs::remove_file(sandbox_root.join("selftest-headers.db"));
+
+        // 5) 老库迁移补列后写入不报错（headers_json 缺列场景）
+        let legacy = sandbox_root.join("legacy-headers.db");
+        {
+            use rusqlite::Connection;
+            let conn = Connection::open(&legacy).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE mcp_server (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+                    transport TEXT NOT NULL, command TEXT, args_json TEXT NOT NULL DEFAULT '[]',
+                    env_json TEXT NOT NULL DEFAULT '[]', url TEXT, package_ref TEXT,
+                    health TEXT NOT NULL DEFAULT 'unknown');",
+            )
+            .unwrap();
+        }
+        let legacy_store = crate::store::Store::open(&legacy).unwrap();
+        let legacy_res = crate::model::McpResource {
+            name: "legacy-headers".into(),
+            headers: vec![EnvPair { key: "X-Api-Key".into(), value: "abc".into() }],
+            ..res.clone()
+        };
+        match legacy_store.mcp_upsert(&legacy_res) {
+            Ok(_) => {
+                let list = legacy_store.mcp_list();
+                check!(
+                    list.len() == 1 && list[0].headers.len() == 1,
+                    "老库迁移补 headers_json 列后可写入并读回"
+                );
+            }
+            Err(e) => {
+                fail += 1;
+                println!("  ❌ 老库写入 headers 失败: {}", e);
+            }
+        }
+        let _ = std::fs::remove_file(&legacy);
     }
 
     println!("\n=== 结果：{} 项通过，{} 项失败 ===", pass, fail);
