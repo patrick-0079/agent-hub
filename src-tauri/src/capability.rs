@@ -150,7 +150,7 @@ const CATALOG: &[(&str, Tier, &str, &str, bool, &[&str])] = &[
     /* ---------------------------------------------------------- T0 观察 */
     ("path.exists", Tier::Observe, "路径是否存在", "检查一个或多个路径是否存在，返回首个命中的路径", true, &["paths"]),
     ("path.stat", Tier::Observe, "路径元信息", "返回是否存在、大小、最后修改时间", true, &["paths"]),
-    ("path.glob", Tier::Observe, "目录匹配", "在目录下按模式匹配条目（受深度与条目上限保护）", false, &["paths", "args"]),
+    ("path.glob", Tier::Observe, "目录匹配", "在目录下按模式匹配条目（`*` 段内通配、`**` 跨层、`?` 单字符；深度与条目上限保护）", true, &["paths", "args"]),
     ("link.read", Tier::Observe, "读取链接", "判断路径是否为符号链接/junction，返回链接类型与目标", true, &["paths"]),
     ("dir.count", Tier::Observe, "统计目录条目", "统计目录内条目数量", true, &["paths"]),
     ("which", Tier::Observe, "解析可执行文件", "按 PATH + 额外目录 + 用户手动指定的位置解析命令行程序", true, &["args", "paths"]),
@@ -178,6 +178,7 @@ const CATALOG: &[(&str, Tier, &str, &str, bool, &[&str])] = &[
     ("py.env.create", Tier::Mutate, "创建 Python 环境", "通过 uv / conda 创建环境并锁定依赖", false, &["args", "paths"]),
     ("py.env.remove", Tier::Mutate, "删除 Python 环境", "删除已有环境（不可恢复，需二次确认）", false, &["paths"]),
     ("proc.spawn.probe", Tier::Mutate, "MCP 握手探测", "实际启动 MCP 进程并完成 initialize 握手", false, &["args"]),
+    ("net.provider.probe", Tier::Mutate, "供应商连通性测试", "对供应商端点发起一次最小只读请求（GET models）：返回延迟、模型数与错误原因；Key 只在内存中使用，不落日志不落库", true, &["args"]),
     ("path.delete", Tier::Mutate, "删除路径", "删除链接或目录 —— 全部先移入回收站（保留指向关系与内容），可一键恢复", true, &["paths"]),
     ("git.clone", Tier::Mutate, "克隆 Git 仓库", "把远程仓库浅克隆到临时目录（遵循设置里的网络代理）", true, &["args", "paths"]),
 ];
@@ -233,6 +234,32 @@ pub fn invoke(capability_id: &str, params: &RuleParams, ctx: &EvalContext) -> Ca
                 }
             }
             miss("路径不存在")
+        }
+        "path.glob" => {
+            let Some(pattern) = params.args.first().filter(|p| !p.trim().is_empty()) else {
+                return miss("缺少模式参数（args[0]）");
+            };
+            for raw in &params.paths {
+                let root = expand(raw);
+                if !root.is_dir() {
+                    continue;
+                }
+                let mut matches: Vec<String> = Vec::new();
+                util::glob_collect(&root, pattern.trim(), &mut matches, 2000, 12);
+                if !matches.is_empty() {
+                    let first = root.join(&matches[0]);
+                    return CapabilityOutcome {
+                        hit: true,
+                        value: first.to_string_lossy().to_string(),
+                        detail: Some(format!(
+                            "匹配 {} 个条目（上限 2000，深度 12）",
+                            matches.len()
+                        )),
+                        error: None,
+                    };
+                }
+            }
+            miss("无匹配条目")
         }
         "link.read" => {
             for raw in &params.paths {

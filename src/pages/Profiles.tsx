@@ -13,12 +13,14 @@ import {
   SegmentedControl,
 } from "../components/ui";
 import { api, describeError } from "../lib/api";
-import { shortenPath } from "../lib/format";
+import { formatBytes, shortenPath } from "../lib/format";
 import { useReveal } from "../lib/hooks";
 import { useApp } from "../lib/store";
 import type {
   McpResource,
   ProfileDetail,
+  ProfileExportMeta,
+  ProfileExportOutcome,
   ProfileItem,
   ProfileResource,
   ProviderResource,
@@ -376,6 +378,13 @@ export function ProfilesPage() {
   const [editing, setEditing] = useState<ProfileDetail | null>(null);
   const [applyProfile, setApplyProfile] = useState<ProfileDetail | null>(null);
 
+  /* 导出 / 导入 */
+  const [importOpen, setImportOpen] = useState(false);
+  const [exportMetas, setExportMetas] = useState<ProfileExportMeta[]>([]);
+  const [manualPath, setManualPath] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [lastExport, setLastExport] = useState<ProfileExportOutcome | null>(null);
+
   const load = () => {
     setLoading(true);
     Promise.all([api.profileList(), api.mcpResources(), api.providerResources()])
@@ -392,6 +401,40 @@ export function ProfilesPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const refreshExports = () => {
+    api
+      .profileExportList()
+      .then(setExportMetas)
+      .catch(() => setExportMetas([]));
+  };
+
+  /** 导出一个档案：文件落在数据目录 exports/，界面给出路径与打开入口 */
+  const exportOne = async (profile: ProfileResource) => {
+    try {
+      const outcome = await api.profileExport(profile.id);
+      setLastExport(outcome);
+      refreshExports();
+    } catch (error) {
+      setBanner(describeError(error));
+    }
+  };
+
+  const importFrom = async (path: string) => {
+    if (!path.trim()) return;
+    setImportBusy(true);
+    try {
+      const detail = await api.profileImport(path.trim());
+      setImportOpen(false);
+      setManualPath("");
+      load();
+      setBanner(`已导入档案「${detail.profile.name}」（${detail.items.length} 项资源）`);
+    } catch (error) {
+      setBanner(describeError(error));
+    } finally {
+      setImportBusy(false);
+    }
+  };
 
   const openEditor = async (profile?: ProfileResource) => {
     if (!profile) {
@@ -433,6 +476,17 @@ export function ProfilesPage() {
             <button type="button" className="btn-ghost btn-sm" onClick={load} disabled={loading}>
               <Icon name="refresh" className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} strokeWidth={2} />
               刷新
+            </button>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              onClick={() => {
+                refreshExports();
+                setImportOpen(true);
+              }}
+            >
+              <Icon name="external" className="h-3.5 w-3.5" />
+              导入档案
             </button>
             <button type="button" className="btn-primary btn-sm" onClick={() => void openEditor()}>
               <Icon name="plus" className="h-3.5 w-3.5" />
@@ -516,6 +570,15 @@ export function ProfilesPage() {
                   </button>
                   <button
                     type="button"
+                    className="btn-ghost btn-sm"
+                    onClick={() => void exportOne(profile)}
+                    title="导出为自包含 JSON（不含任何密钥），落在数据目录 exports/ 下"
+                  >
+                    <Icon name="external" className="h-3.5 w-3.5" />
+                    导出
+                  </button>
+                  <button
+                    type="button"
                     className="btn border border-rose-500/40 btn-sm text-rose-300 hover:bg-rose-950"
                     onClick={() => void remove(profile)}
                   >
@@ -562,16 +625,174 @@ export function ProfilesPage() {
             <div className="flex items-center gap-2">
               <Icon name="link" className="h-4 w-4 text-accent-400" />
               <span className="text-sm text-slate-200">档案导出 / 分享</span>
-              <Badge tone="violet" className="ml-auto">
-                M4
+              <Badge tone="teal" className="ml-auto">
+                已实现
               </Badge>
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-              一个 JSON 带走完整环境定义（密钥默认剔除），用于换机迁移或团队共享。
+              一个 JSON 带走完整环境定义（密钥默认剔除），落在数据目录 exports/ 下，拷给别人即可导入；同名导入自动加后缀，互不覆盖。
             </p>
           </Card>
         </div>
       )}
+
+      {/* 导出结果反馈 */}
+      {lastExport && (
+        <Card className="border-brand-500/30">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-md border border-brand-800 bg-brand-900 p-2 text-brand-400">
+              <Icon name="external" className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm text-slate-200">
+                已导出「{lastExport.name}」（{lastExport.items} 项资源，不含任何密钥）
+              </div>
+              <div className="mono mt-0.5 truncate" title={lastExport.path}>
+                {lastExport.path}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn-ghost btn-sm shrink-0"
+              onClick={() => reveal(lastExport.path)}
+            >
+              <Icon name="folder" className="h-3.5 w-3.5" />
+              打开文件位置
+            </button>
+            <button
+              type="button"
+              className="btn-ghost btn-sm shrink-0"
+              onClick={() => setLastExport(null)}
+            >
+              <Icon name="close" className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {/* 导入档案 */}
+      <Modal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="导入环境档案"
+        subtitle="从导出目录选择，或粘贴任意的 .agenthub-profile.json 文件路径（密钥永不包含在文件里）"
+        width="max-w-2xl"
+        footer={
+          <>
+            <button type="button" className="btn-ghost" onClick={() => setImportOpen(false)}>
+              取消
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={!manualPath.trim() || importBusy}
+              onClick={() => void importFrom(manualPath)}
+            >
+              {importBusy ? "导入中…" : "从路径导入"}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-300">
+                导出目录（{exportMetas.length} 个文件）
+              </span>
+              <button
+                type="button"
+                className="btn-ghost btn-sm"
+                onClick={() =>
+                  exportMetas[0]
+                    ? reveal(exportMetas[0].path)
+                    : setBanner("导出目录还是空的：先在上方卡片点「导出」")
+                }
+              >
+                <Icon name="folder" className="h-3.5 w-3.5" />
+                打开导出目录
+              </button>
+            </div>
+            {exportMetas.length === 0 ? (
+              <Empty
+                icon="profiles"
+                title="导出目录还没有文件"
+                description="在本页档案卡片上点「导出」，或把别人分享的 .agenthub-profile.json 放进导出目录后点「刷新」。"
+              />
+            ) : (
+              <div className="space-y-2">
+                {exportMetas.map((meta) => (
+                  <div
+                    key={meta.path}
+                    className="flex flex-wrap items-center gap-2 rounded-md border border-ink-800 bg-ink-900 px-3 py-2.5"
+                  >
+                    <Icon name="profiles" className="h-4 w-4 shrink-0 text-slate-400" />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-sm font-medium text-slate-100">
+                          {meta.name}
+                        </span>
+                        {meta.skillItems > 0 && (
+                          <Badge tone="violet" icon="skills">
+                            Skill {meta.skillItems}
+                          </Badge>
+                        )}
+                        {meta.mcpItems > 0 && (
+                          <Badge tone="sky" icon="mcp">
+                            MCP {meta.mcpItems}
+                          </Badge>
+                        )}
+                        {meta.providerItems > 0 && (
+                          <Badge tone="rose" icon="providers">
+                            供应商 {meta.providerItems}
+                          </Badge>
+                        )}
+                      </span>
+                      <span className="mono mt-0.5 block truncate" title={meta.path}>
+                        {shortenPath(meta.path, 64)} · {formatBytes(meta.bytes)} ·{" "}
+                        {meta.exportedAt || "时间未知"}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-primary btn-sm shrink-0"
+                      disabled={importBusy}
+                      onClick={() => void importFrom(meta.path)}
+                    >
+                      <Icon name="plus" className="h-3.5 w-3.5" />
+                      导入
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-slate-300">
+              从任意路径导入
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                className="input"
+                placeholder="C:\ ...\my-profile.agenthub-profile.json"
+                value={manualPath}
+                onChange={(e) => setManualPath(e.target.value)}
+              />
+              <button
+                type="button"
+                className="btn-ghost btn-sm shrink-0"
+                onClick={refreshExports}
+              >
+                <Icon name="refresh" className="h-3.5 w-3.5" />
+                刷新
+              </button>
+            </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+              同名档案不会互相覆盖：导入时自动加「（导入）」后缀；导出文件不包含 API Key，
+              导入后需要在「模型供应商」里重新录入密钥。
+            </p>
+          </div>
+        </div>
+      </Modal>
 
       <ProfileEditor
         open={editorOpen}

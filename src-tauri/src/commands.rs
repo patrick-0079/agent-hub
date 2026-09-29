@@ -793,6 +793,105 @@ pub fn vault_status(state: State<'_, AppState>) -> VaultStatus {
     }
 }
 
+/* --------------------------------------- 供应商连通性测试（T3 · 网络） */
+
+/// 测试一个供应商的连通性并把结果落库（provider.health 列）。
+/// Key 从保险库解密后只在这一次请求的内存中存在。
+#[tauri::command]
+pub fn provider_test(
+    state: State<'_, AppState>,
+    id: i64,
+) -> Result<crate::probe::ProviderTestResult, String> {
+    let target = state
+        .store
+        .provider_list()
+        .into_iter()
+        .find(|p| p.id == id)
+        .ok_or_else(|| "供应商不存在".to_string())?;
+    let key_ref = if target.key_ref.is_empty() {
+        provider_key_ref(&target.name)
+    } else {
+        target.key_ref.clone()
+    };
+    let key = state.vault.get(&key_ref);
+    let proxy = state
+        .settings
+        .lock()
+        .map(|s| s.network_proxy.clone())
+        .unwrap_or_default();
+
+    let mut result = crate::probe::test_provider(
+        &target.base_url,
+        &target.kind,
+        key.as_deref(),
+        &proxy,
+    );
+    result.provider_id = id;
+    result.provider_name = target.name.clone();
+
+    // 落库（解析失败也不影响返回结果本身）
+    if let Ok(json) = serde_json::to_string(&result) {
+        let _ = state.store.provider_set_health(id, &json);
+    }
+    Ok(result)
+}
+
+/* --------------------------------------------- 快照对比与档案导出导入 */
+
+/// 对比两份扫描快照（A 为旧、B 为新）
+#[tauri::command]
+pub fn snapshot_diff(
+    state: State<'_, AppState>,
+    id_a: i64,
+    id_b: i64,
+) -> Result<crate::snapdiff::SnapshotDiff, String> {
+    let a = state
+        .store
+        .snapshot_by_id(id_a)
+        .ok_or_else(|| "快照 A 不存在".to_string())?;
+    let b = state
+        .store
+        .snapshot_by_id(id_b)
+        .ok_or_else(|| "快照 B 不存在".to_string())?;
+    let mut diff = crate::snapdiff::diff_snapshots(&a, &b);
+    diff.a_id = id_a;
+    diff.b_id = id_b;
+    Ok(diff)
+}
+
+/// 导出档案到数据目录 exports/（自包含 JSON，可拷给他人导入）
+#[tauri::command]
+pub fn profile_export(
+    state: State<'_, AppState>,
+    id: i64,
+) -> Result<crate::share::ProfileExportOutcome, String> {
+    crate::share::export_profile(&state.store, id)
+}
+
+/// 列出 exports/ 目录里可导入的档案文件
+#[tauri::command]
+pub fn profile_export_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<crate::share::ProfileExportMeta>, String> {
+    let (mut metas, failed) = crate::share::list_exports(&state.store);
+    let _ = failed;
+    metas.sort_by(|a, b| b.exported_at.cmp(&a.exported_at));
+    Ok(metas)
+}
+
+/// 从导出文件导入档案（同名自动加后缀，不覆盖现有数据）
+#[tauri::command]
+pub fn profile_import(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<crate::model::ProfileDetail, String> {
+    let imported = crate::share::import_profile(&state.store, std::path::Path::new(&path))?;
+    state
+        .store
+        .profile_detail(imported.id)
+        .ok_or_else(|| "导入成功但读取详情失败".to_string())
+}
+
 /* --------------------------------------------------- 供应商分发（T2） */
 
 fn provider_sync_context(

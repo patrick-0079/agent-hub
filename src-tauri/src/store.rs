@@ -341,7 +341,7 @@ impl Store {
             Err(_) => return Vec::new(),
         };
         let mut stmt = match conn.prepare(
-            "SELECT id, name, kind, base_url, key_ref, models_json, enabled, notes
+            "SELECT id, name, kind, base_url, key_ref, models_json, enabled, notes, health
              FROM provider ORDER BY name COLLATE NOCASE",
         ) {
             Ok(s) => s,
@@ -349,6 +349,9 @@ impl Store {
         };
         let rows = stmt.query_map([], |row| {
             let models_json: String = row.get(5)?;
+            let health_raw: String = row
+                .get::<_, Option<String>>(8)?
+                .unwrap_or_else(|| "unknown".to_string());
             Ok(crate::model::ProviderResource {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -360,6 +363,8 @@ impl Store {
                 notes: row.get(7)?,
                 has_key: false,
                 masked_key: None,
+                // 老值 'unknown' 解析失败 → 默认（未测试）
+                health: serde_json::from_str(&health_raw).unwrap_or_default(),
             })
         });
         match rows {
@@ -411,6 +416,16 @@ impl Store {
             ],
         )?;
         Ok(conn.last_insert_rowid())
+    }
+
+    /// 更新供应商健康状态（只由连通性测试写入，普通保存不重置）
+    pub fn provider_set_health(&self, id: i64, health_json: &str) -> Result<()> {
+        let conn = self.conn()?;
+        conn.execute(
+            "UPDATE provider SET health = ?1, updated_at = ?2 WHERE id = ?3",
+            params![health_json, crate::util::now_human(), id],
+        )?;
+        Ok(())
     }
 
     pub fn provider_delete(&self, id: i64) -> Result<()> {
@@ -827,6 +842,21 @@ impl Store {
             Ok(iter) => iter.flatten().collect(),
             Err(_) => Vec::new(),
         }
+    }
+
+    /// 按编号取一份完整快照（快照对比用）
+    pub fn snapshot_by_id(&self, id: i64) -> Option<ScanSnapshot> {
+        let conn = self.conn.lock().ok()?;
+        let raw: Option<String> = conn
+            .query_row(
+                "SELECT json FROM scan_snapshot WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .optional()
+            .ok()
+            .flatten();
+        raw.and_then(|j| serde_json::from_str::<ScanSnapshot>(&j).ok())
     }
 
     /// 保留最近 `keep` 份快照，避免数据库无限增长。

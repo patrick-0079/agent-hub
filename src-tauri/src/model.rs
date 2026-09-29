@@ -331,6 +331,23 @@ pub struct ProviderResource {
     pub masked_key: Option<String>,
     pub enabled: bool,
     pub notes: String,
+    /// 最近一次连通性测试的结果（未测试时为默认值）
+    #[serde(default)]
+    pub health: ProviderHealth,
+}
+
+/// 供应商连通性测试结果（存 provider.health 列）
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderHealth {
+    /// ok | no_key | error |（空 = 未测试）
+    pub status: String,
+    pub http_status: Option<u16>,
+    pub latency_ms: u64,
+    pub models: Option<usize>,
+    pub message: String,
+    pub tested_at: String,
+    pub endpoint: String,
 }
 
 /// Agent 定义里的 Provider 写入声明

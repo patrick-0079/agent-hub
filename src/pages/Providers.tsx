@@ -10,12 +10,18 @@ import {
   Modal,
   SectionCard,
   SegmentedControl,
+  StatusDot,
   Toggle,
 } from "../components/ui";
 import { api, describeError } from "../lib/api";
 import { KIND_LABEL, useReveal } from "../lib/hooks";
 import { useApp } from "../lib/store";
-import type { ProviderHint, ProviderResource, VaultStatus } from "../lib/types";
+import type {
+  ProviderHint,
+  ProviderResource,
+  ProviderTestResult,
+  VaultStatus,
+} from "../lib/types";
 
 const KIND_TONE: Record<string, "rose" | "teal" | "violet" | "slate"> = {
   "api-key": "rose",
@@ -44,7 +50,49 @@ function emptyProvider(): ProviderResource {
     maskedKey: null,
     enabled: true,
     notes: "",
+    health: {
+      status: "",
+      httpStatus: null,
+      latencyMs: 0,
+      models: null,
+      message: "",
+      testedAt: "",
+      endpoint: "",
+    },
   };
+}
+
+/** 连通性测试结果在卡片里的一行展示 */
+function HealthLine({ health }: { health: ProviderResource["health"] }) {
+  if (!health || !health.status) return null;
+  const dot = health.status === "ok" ? "ok" : health.status === "no_key" ? "warn" : "error";
+  return (
+    <div
+      className="mt-1 flex items-center gap-2 text-[11px] leading-relaxed"
+      title={`${health.endpoint || "—"}\n${health.message}`}
+    >
+      <StatusDot state={dot} />
+      <span
+        className={
+          health.status === "ok"
+            ? "text-slate-400"
+            : health.status === "no_key"
+              ? "text-amber-300"
+              : "text-rose-300"
+        }
+      >
+        {health.status === "ok" && (
+          <>
+            连通 {health.latencyMs} ms
+            {health.models != null && ` · ${health.models} 个模型`}
+            {health.testedAt && ` · ${health.testedAt}`}
+          </>
+        )}
+        {health.status === "no_key" && `端点可达，但尚未保存 API Key（HTTP ${health.httpStatus ?? "?"}）`}
+        {health.status === "error" && health.message}
+      </span>
+    </div>
+  );
 }
 
 /** 把扫描线索映射成受管供应商（密钥不在线索里，需要重新录入） */
@@ -241,6 +289,7 @@ export function ProvidersPage() {
   const [revealed, setRevealed] = useState<{ id: number; value: string } | null>(null);
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState("all");
+  const [testing, setTesting] = useState<Set<number>>(new Set());
 
   const hints = snapshot?.providerHints ?? [];
 
@@ -261,6 +310,47 @@ export function ProvidersPage() {
   }, []);
 
   const enabledCount = providers.filter((p) => p.enabled).length;
+
+  /** 测试单个供应商：结果就地更新（后端同时已落库） */
+  const testOne = async (item: ProviderResource) => {
+    setTesting((prev) => new Set(prev).add(item.id));
+    try {
+      const result: ProviderTestResult = await api.providerTest(item.id);
+      setProviders((prev) =>
+        prev.map((p) =>
+          p.id === item.id
+            ? {
+                ...p,
+                health: {
+                  status: result.status,
+                  httpStatus: result.httpStatus,
+                  latencyMs: result.latencyMs,
+                  models: result.models,
+                  message: result.message,
+                  testedAt: result.testedAt,
+                  endpoint: result.endpoint,
+                },
+              }
+            : p,
+        ),
+      );
+    } catch (error) {
+      setBanner(describeError(error));
+    } finally {
+      setTesting((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  };
+
+  /** 逐个测试全部启用的供应商（串行，避免同时打满代理） */
+  const testAll = async () => {
+    for (const item of providers.filter((p) => p.enabled)) {
+      await testOne(item);
+    }
+  };
 
   const toggleEnabled = async (item: ProviderResource) => {
     try {
@@ -368,6 +458,19 @@ export function ProvidersPage() {
             />
             {tab === "managed" ? (
               <>
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  onClick={() => void testAll()}
+                  disabled={enabledCount === 0 || testing.size > 0}
+                  title="对全部启用的供应商各发起一次最小只读请求（GET models）"
+                >
+                  <Icon
+                    name="play"
+                    className={`h-3.5 w-3.5 ${testing.size > 0 ? "animate-pulse-soft" : ""}`}
+                  />
+                  {testing.size > 0 ? `测试中（${testing.size}）` : "测试连接"}
+                </button>
                 <button
                   type="button"
                   className="btn-ghost btn-sm"
@@ -492,8 +595,22 @@ export function ProvidersPage() {
                           )}
                         </span>
                       )}
+                      <HealthLine health={item.health} />
                     </span>
                     <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        onClick={() => void testOne(item)}
+                        disabled={testing.has(item.id)}
+                        title="对 Base URL 发起一次最小只读请求（GET models）"
+                      >
+                        <Icon
+                          name="play"
+                          className={`h-3.5 w-3.5 ${testing.has(item.id) ? "animate-pulse-soft" : ""}`}
+                        />
+                        {testing.has(item.id) ? "测试中" : "测试"}
+                      </button>
                       {item.hasKey && (
                         <button
                           type="button"

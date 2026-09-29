@@ -517,7 +517,7 @@ pub fn apply_sync(req: &SyncRequest) -> crate::actions::ActionResult {
 }
 
 /// 原子写入：先写同目录临时文件再改名，避免半截文件
-fn atomic_write(file: &Path, content: &str) -> Result<(), String> {
+pub fn atomic_write(file: &Path, content: &str) -> Result<(), String> {
     let temp = file.with_extension(format!(
         "{}.agenthub-tmp",
         file.extension()

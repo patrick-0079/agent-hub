@@ -21,6 +21,8 @@ rusqlite = { version = "0.40.2", features = ["bundled"] }
 toml = "1.0.7"
 chrono = "0.4.45"
 anyhow = "1.0.104"
+# 供应商连通性探测（同步、小体积 HTTP 客户端）
+ureq = { version = "2.10", default-features = false, features = ["tls"] }
 
 [profile.dev]
 incremental = true

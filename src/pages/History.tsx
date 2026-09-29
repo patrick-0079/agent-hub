@@ -8,7 +8,14 @@ import { api, describeError } from "../lib/api";
 import { formatBytes, formatDuration, formatTime, relativeTime, shortenPath } from "../lib/format";
 import { useReveal } from "../lib/hooks";
 import { useApp } from "../lib/store";
-import type { ActionResult, BackupInfo, ManifestInfo, SnapshotMeta, TrashStats } from "../lib/types";
+import type {
+  ActionResult,
+  BackupInfo,
+  ManifestInfo,
+  SnapshotDiff,
+  SnapshotMeta,
+  TrashStats,
+} from "../lib/types";
 
 const OP_LABEL: Record<string, string> = {
   "skill-import": "导入 Skill",
@@ -31,6 +38,12 @@ export function HistoryPage() {
   const [result, setResult] = useState<ActionResult | null>(null);
   const [loading, setLoading] = useState(true);
 
+  /* 快照对比（A 旧 → B 新） */
+  const [diffA, setDiffA] = useState<number | null>(null);
+  const [diffB, setDiffB] = useState<number | null>(null);
+  const [diff, setDiff] = useState<SnapshotDiff | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+
   const loadAll = useCallback(() => {
     setLoading(true);
     Promise.all([
@@ -44,6 +57,9 @@ export function HistoryPage() {
         setManifests(manifestList);
         setTrashStats(stats);
         setBackups(backupList);
+        // 默认对比最近两份快照
+        setDiffA((prev) => prev ?? (history.length >= 2 ? history[1].id : null));
+        setDiffB((prev) => prev ?? (history.length >= 1 ? history[0].id : null));
       })
       .catch((error) => setBanner(describeError(error)))
       .finally(() => setLoading(false));
@@ -61,6 +77,27 @@ export function HistoryPage() {
       setBanner(describeError(error));
     }
   };
+
+  const runDiff = async () => {
+    if (diffA == null || diffB == null || diffA === diffB) return;
+    setDiffLoading(true);
+    try {
+      setDiff(await api.snapshotDiff(diffA, diffB));
+    } catch (error) {
+      setBanner(describeError(error));
+    } finally {
+      setDiffLoading(false);
+    }
+  };
+
+  // 默认选中就绪后自动对比一次
+  useEffect(() => {
+    if (diff && diffA != null && diffB != null && diff.aId === diffA && diff.bId === diffB) return;
+    if (diffA != null && diffB != null && diffA !== diffB && !diff && !diffLoading) {
+      void runDiff();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diffA, diffB]);
 
   return (
     <div className="space-y-4">
@@ -284,6 +321,135 @@ export function HistoryPage() {
         )}
       </SectionCard>
 
+      {/* 快照对比：任意两次扫描的资源级差异 */}
+      <SectionCard
+        title="快照对比"
+        subtitle="任选两次扫描，查看期间环境的资源变化（新增 / 移除 / 变化）"
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className="input w-40 py-1.5 text-xs"
+              value={diffA ?? ""}
+              onChange={(e) => setDiffA(e.target.value ? Number(e.target.value) : null)}
+              title="基准（旧）"
+            >
+              <option value="">基准（旧）…</option>
+              {items.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {formatTime(m.scannedAt)}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-slate-500">→</span>
+            <select
+              className="input w-40 py-1.5 text-xs"
+              value={diffB ?? ""}
+              onChange={(e) => setDiffB(e.target.value ? Number(e.target.value) : null)}
+              title="对比（新）"
+            >
+              <option value="">对比（新）…</option>
+              {items.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {formatTime(m.scannedAt)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              onClick={() => void runDiff()}
+              disabled={diffA == null || diffB == null || diffA === diffB || diffLoading}
+            >
+              <Icon name="search" className={`h-3.5 w-3.5 ${diffLoading ? "animate-spin" : ""}`} />
+              对比
+            </button>
+          </div>
+        }
+        bodyClassName="space-y-3"
+      >
+        {items.length < 2 ? (
+          <Empty
+            icon="history"
+            title="快照不足两份"
+            description="至少需要两次扫描才能对比。点顶栏的「扫描」再来一次即可。"
+          />
+        ) : diff ? (
+          <>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+              <Badge tone="slate">{diff.aAt}</Badge>
+              <Icon name="chevronRight" className="h-3.5 w-3.5 text-slate-600" />
+              <Badge tone="slate">{diff.bAt}</Badge>
+              <span className="text-slate-500">{diff.summary}</span>
+            </div>
+            {diff.sections.length === 0 ? (
+              <Empty icon="check" title="两次扫描之间没有资源变化" />
+            ) : (
+              diff.sections.map((sec) => (
+                <div key={sec.resource} className="rounded-md border border-ink-800 bg-ink-900 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Icon
+                      name={
+                        sec.resource === "agents"
+                          ? "agents"
+                          : sec.resource === "skills"
+                            ? "skills"
+                            : sec.resource === "mcp"
+                              ? "mcp"
+                              : sec.resource === "npm"
+                                ? "npm"
+                                : sec.resource === "python"
+                                  ? "python"
+                                  : "providers"
+                      }
+                      className="h-3.5 w-3.5 text-slate-400"
+                    />
+                    <span className="text-sm font-medium text-slate-200">{sec.title}</span>
+                    <div className="ml-auto flex items-center gap-1.5">
+                      {sec.added.length > 0 && (
+                        <Badge tone="teal">+{sec.added.length}</Badge>
+                      )}
+                      {sec.changed.length > 0 && (
+                        <Badge tone="amber">~{sec.changed.length}</Badge>
+                      )}
+                      {sec.removed.length > 0 && (
+                        <Badge tone="rose">−{sec.removed.length}</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <ul className="mt-2 space-y-1">
+                    {[
+                      ...sec.added.map((e) => ({ e, mark: "+" as const })),
+                      ...sec.changed.map((e) => ({ e, mark: "~" as const })),
+                      ...sec.removed.map((e) => ({ e, mark: "−" as const })),
+                    ].map(({ e, mark }) => (
+                      <li key={`${mark}-${e.key}`} className="flex items-baseline gap-2 text-xs">
+                        <span
+                          className={`w-3 shrink-0 text-center font-mono ${
+                            mark === "+"
+                              ? "text-brand-400"
+                              : mark === "~"
+                                ? "text-amber-300"
+                                : "text-rose-300"
+                          }`}
+                        >
+                          {mark}
+                        </span>
+                        <span className="shrink-0 text-slate-200">{e.label}</span>
+                        <span className="min-w-0 truncate text-slate-500" title={e.detail}>
+                          {e.detail}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
+            )}
+          </>
+        ) : (
+          <Empty icon="search" title={diffLoading ? "正在对比…" : "选择两份快照后点击「对比」"} />
+        )}
+      </SectionCard>
+
       <div className="grid gap-3 md:grid-cols-2">
         <Card className="border-dashed">
           <div className="flex items-center gap-2">
@@ -295,18 +461,6 @@ export function HistoryPage() {
           </div>
           <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
             配置写入的 diff 与备份会并入同一条时间线（当前已覆盖 Skill 类操作）。
-          </p>
-        </Card>
-        <Card className="border-dashed">
-          <div className="flex items-center gap-2">
-            <Icon name="search" className="h-4 w-4 text-accent-400" />
-            <span className="text-sm text-slate-200">快照对比</span>
-            <Badge tone="violet" className="ml-auto">
-              M1
-            </Badge>
-          </div>
-          <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-            任意两次扫描结果可直接对比，看清环境这期间发生了哪些变化。
           </p>
         </Card>
       </div>

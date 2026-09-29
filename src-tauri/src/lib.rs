@@ -6,8 +6,11 @@ pub mod agentdef;
 pub mod capability;
 pub mod merge;
 pub mod model;
+pub mod probe;
 pub mod profile;
 pub mod scan;
+pub mod share;
+pub mod snapdiff;
 pub mod store;
 pub mod sync;
 pub mod util;
@@ -183,6 +186,10 @@ pub fn cli_self_test() {
     let _ = std::fs::remove_dir_all(&base);
     let source = base.join("source");
     let library = base.join("library");
+    // 各节共用的 selftest-*.db 开跑前清一次：多个小节有意共享状态，
+    // 但跨轮残留会让「备份数 == 1」这类计数断言随机失败（CI 必踩）
+    let _ = std::fs::remove_file(default_data_dir().join("selftest-sync.db"));
+    let _ = std::fs::remove_file(default_data_dir().join("selftest-profile.db"));
     println!("\n=== AgentHub T2/T3 沙箱自检 ===");
     println!("沙箱: {}", base.display());
     println!("数据目录: {}\n", default_data_dir().display());
@@ -1071,6 +1078,7 @@ pub fn cli_self_test() {
             masked_key: None,
             enabled: true,
             notes: String::new(),
+            health: Default::default(),
         }];
         let no_agents: Vec<String> = vec![];
         let resolve = |key_ref: &str| {
@@ -1200,6 +1208,7 @@ pub fn cli_self_test() {
             masked_key: None,
             enabled: true,
             notes: String::new(),
+            health: Default::default(),
         };
         match store.provider_upsert(&provider) {
             Ok(_) => check!(
@@ -1396,6 +1405,503 @@ pub fn cli_self_test() {
         let _ = std::fs::remove_file(default_data_dir().join("selftest-profile.db"));
     }
 
+    println!("[19] 供应商连通性测试 net.provider.probe（本地 mock 服务器）");
+    {
+        use crate::probe::test_provider;
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+
+        /// 极简 HTTP mock：读取请求行，按路径路由到 (状态码, 响应体)
+        fn spawn_mock(
+            router: fn(&str) -> (u16, String),
+            max_connections: usize,
+        ) -> (String, std::thread::JoinHandle<()>) {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let port = listener.local_addr().unwrap().port();
+            let handle = std::thread::spawn(move || {
+                for _ in 0..max_connections {
+                    let Ok((mut stream, _)) = listener.accept() else {
+                        break;
+                    };
+                    let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(600)));
+                    let mut req = Vec::new();
+                    let mut chunk = [0u8; 2048];
+                    loop {
+                        match stream.read(&mut chunk) {
+                            Ok(0) => break,
+                            Ok(n) => {
+                                req.extend_from_slice(&chunk[..n]);
+                                if req.windows(4).any(|w| w == b"\r\n\r\n") {
+                                    break;
+                                }
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                    let first_line = String::from_utf8_lossy(&req);
+                    let path = first_line
+                        .split_whitespace()
+                        .nth(1)
+                        .unwrap_or("/")
+                        .to_string();
+                    let (status, body) = router(&path);
+                    let reason = match status {
+                        200 => "OK",
+                        401 => "Unauthorized",
+                        404 => "Not Found",
+                        _ => "Error",
+                    };
+                    let response = format!(
+                        "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        status,
+                        reason,
+                        body.len(),
+                        body
+                    );
+                    let _ = stream.write_all(response.as_bytes());
+                }
+            });
+            (format!("http://127.0.0.1:{}", port), handle)
+        }
+
+        // 1) OpenAI 兼容 + 端点兜底：/models 404 → /v1/models 200
+        fn openai_router(path: &str) -> (u16, String) {
+            if path == "/v1/models" {
+                (200, r#"{"data":[{"id":"m1"},{"id":"m2"},{"id":"m3"}]}"#.into())
+            } else {
+                (404, r#"{"error":"not found"}"#.into())
+            }
+        }
+        let base1 = spawn_mock(openai_router, 3).0;
+        let r = test_provider(&base1, "openai-compatible", None, "");
+        check!(
+            r.status == "ok" && r.http_status == Some(200) && r.models == Some(3),
+            "OpenAI 兼容：404 后兜底 /v1/models → ok（HTTP {:?}，{} 个模型，{} ms）",
+            r.http_status,
+            r.models.unwrap_or(0),
+            r.latency_ms
+        );
+        check!(
+            r.endpoint.ends_with("/v1/models"),
+            "实际端点为兜底地址：{}",
+            r.endpoint
+        );
+
+        // 2) 未保存 Key：401 → no_key（这是可用的信号，不是失败）
+        fn unauthorized(_path: &str) -> (u16, String) {
+            (401, r#"{"error":"missing api key"}"#.into())
+        }
+        let base2 = spawn_mock(unauthorized, 3).0;
+        let r = test_provider(&base2, "openai-compatible", None, "");
+        check!(
+            r.status == "no_key" && r.http_status == Some(401),
+            "端点可达但无 Key → no_key（提示：{}）",
+            r.message
+        );
+
+        // 3) Key 无效：401 → error，且响应体回显的 Key 会被打码
+        fn echo_key(_path: &str) -> (u16, String) {
+            (401, r#"{"error":"invalid key sk-sandbox-echo-0123456789"}"#.into())
+        }
+        let base3 = spawn_mock(echo_key, 2).0;
+        let r = test_provider(&base3, "openai-compatible", Some("sk-sandbox-echo-0123456789"), "");
+        check!(
+            r.status == "error" && r.message.contains("***") && !r.message.contains("sk-sandbox-echo-0123456789"),
+            "Key 无效 → error，且回显内容已打码（{}）",
+            r.message
+        );
+
+        // 4) 连接失败（端口已关闭）
+        let dead_port = {
+            let l = TcpListener::bind("127.0.0.1:0").unwrap();
+            let p = l.local_addr().unwrap().port();
+            drop(l);
+            p
+        };
+        let r = test_provider(&format!("http://127.0.0.1:{}", dead_port), "openai-compatible", None, "");
+        check!(
+            r.status == "error" && r.message.contains("连接"),
+            "端口关闭 → error（{}）",
+            r.message
+        );
+
+        // 5) Anthropic：base 无 /v1 时端点补 /v1/models
+        fn anthropic_router(path: &str) -> (u16, String) {
+            if path == "/v1/models" {
+                (200, r#"{"data":[]}"#.into())
+            } else {
+                (404, "{}".into())
+            }
+        }
+        let base5 = spawn_mock(anthropic_router, 2).0;
+        let r = test_provider(&base5, "anthropic", None, "");
+        check!(
+            r.status == "ok" && r.endpoint.ends_with("/v1/models") && r.models == Some(0),
+            "Anthropic：端点补 /v1/models → ok（{} 个模型）",
+            r.models.unwrap_or(0)
+        );
+
+        // 6) Ollama：无协议前缀自动补 http，端点 /api/tags
+        fn ollama_router(path: &str) -> (u16, String) {
+            if path == "/api/tags" {
+                (200, r#"{"models":[{},{}]}"#.into())
+            } else {
+                (404, "{}".into())
+            }
+        }
+        let base6 = spawn_mock(ollama_router, 2).0;
+        let raw_base = base6.trim_start_matches("http://").to_string();
+        let r = test_provider(&raw_base, "ollama", None, "");
+        check!(
+            r.status == "ok" && r.endpoint.ends_with("/api/tags") && r.models == Some(2),
+            "Ollama：补协议 + /api/tags → ok（{} 个模型）",
+            r.models.unwrap_or(0)
+        );
+
+        // 7) 空 Base URL
+        let r = test_provider("", "openai-compatible", None, "");
+        check!(r.status == "error", "空 Base URL → error（{}）", r.message);
+
+        // mock 线程可能仍在 accept() 等待额外连接：不 join，
+        // 让它们随进程退出自然回收（各自都有连接数上限，不会泄漏累积）
+    }
+
+    println!("[20] 快照对比：两次扫描的资源级差异");
+    {
+        use crate::model::{ScanSnapshot, SnapshotMeta};
+        use crate::snapdiff::diff_snapshots;
+
+        let mk_agent = |id: &str, status: &str, skills: usize, mcp: usize| crate::model::AgentTarget {
+            id: id.into(),
+            name: format!("Agent-{}", id),
+            status: status.into(),
+            installed: status == "installed",
+            skill_count: skills,
+            mcp_count: mcp,
+            ..Default::default()
+        };
+        let mk_skill = |path: &str, name: &str, bytes: u64, broken: bool| crate::model::SkillFound {
+            path: path.into(),
+            name: name.into(),
+            bytes,
+            broken,
+            ..Default::default()
+        };
+        let mk_mcp = |name: &str, agent: &str, agent_id: &str, transport: &str| {
+            crate::model::McpServerFound {
+                id: format!("{}/{}", agent_id, name),
+                name: name.into(),
+                source_agent: agent.into(),
+                source_agent_id: agent_id.into(),
+                transport: transport.into(),
+                ..Default::default()
+            }
+        };
+
+        let mut a = ScanSnapshot {
+            scanned_at: "2025-01-01 10:00:00".into(),
+            ..Default::default()
+        };
+        a.agents = vec![mk_agent("ag-a", "installed", 5, 2), mk_agent("ag-b", "configured", 0, 0)];
+        a.skills = vec![
+            mk_skill("C:/lib/s1", "s1", 100, false),
+            mk_skill("C:/lib/s2", "s2", 200, false),
+        ];
+        a.mcp_servers = vec![mk_mcp("old-mcp", "Agent-ag-a", "ag-a", "stdio")];
+        a.python_envs = vec![crate::model::PythonEnv {
+            path: "C:/envs/py312".into(),
+            name: "py312".into(),
+            manager: "uv".into(),
+            python_version: Some("3.12.1".into()),
+            package_count: Some(10),
+            ..Default::default()
+        }];
+        a.npm_packages = vec![crate::model::NpmPackage {
+            name: "pkg-a".into(),
+            version: "1.0.0".into(),
+            manager: "npm".into(),
+            ..Default::default()
+        }];
+        a.provider_hints = vec![crate::model::ProviderHint {
+            id: "h1".into(),
+            label: "旧线索".into(),
+            ..Default::default()
+        }];
+
+        let mut b = ScanSnapshot {
+            scanned_at: "2025-01-02 10:00:00".into(),
+            ..Default::default()
+        };
+        b.agents = vec![mk_agent("ag-a", "leftover", 5, 2), mk_agent("ag-b", "configured", 0, 0), mk_agent("ag-c", "installed", 1, 1)];
+        b.skills = vec![
+            mk_skill("C:/lib/s2", "s2", 500, true),      // 变化：大小 + 失效
+            mk_skill("C:/lib/s3", "s3", 300, false),      // 新增
+        ]; // s1 移除
+        b.mcp_servers = vec![mk_mcp("new-mcp", "Agent-ag-a", "ag-a", "http")]; // old-mcp 移除
+        b.python_envs = vec![crate::model::PythonEnv {
+            path: "C:/envs/py312".into(),
+            name: "py312".into(),
+            manager: "uv".into(),
+            python_version: Some("3.12.4".into()),
+            package_count: Some(12),
+            ..Default::default()
+        }];
+        b.npm_packages = vec![
+            crate::model::NpmPackage {
+                name: "pkg-a".into(),
+                version: "1.1.0".into(),
+                manager: "npm".into(),
+                ..Default::default()
+            },
+            crate::model::NpmPackage {
+                name: "pkg-b".into(),
+                version: "0.9.0".into(),
+                manager: "pnpm".into(),
+                ..Default::default()
+            },
+        ];
+        b.provider_hints = vec![]; // h1 移除
+
+        let diff = diff_snapshots(&a, &b);
+        let sec = |name: &str| diff.sections.iter().find(|s| s.resource == name);
+        check!(
+            sec("agents").map(|s| s.changed.len() == 1 && s.added.len() == 1).unwrap_or(false),
+            "Agent：ag-a 状态变化 ×1、ag-c 新增 ×1"
+        );
+        let skills = sec("skills").expect("skills section");
+        check!(
+            skills.added.len() == 1 && skills.removed.len() == 1 && skills.changed.len() == 1,
+            "Skill：新增 {} / 移除 {} / 变化 {}",
+            skills.added.len(),
+            skills.removed.len(),
+            skills.changed.len()
+        );
+        check!(
+            skills
+                .changed
+                .iter()
+                .any(|c| c.detail.contains("链接已失效")),
+            "Skill 变化细节标注失效：{}",
+            skills.changed[0].detail
+        );
+        let mcp = sec("mcp").expect("mcp section");
+        check!(
+            mcp.added.len() == 1 && mcp.removed.len() == 1,
+            "MCP：新增 {} / 移除 {}",
+            mcp.added.len(),
+            mcp.removed.len()
+        );
+        let npm = sec("npm").expect("npm section");
+        check!(
+            npm.changed
+                .iter()
+                .any(|c| c.detail.contains("1.0.0 → 1.1.0")),
+            "npm 版本变化：{}",
+            npm.changed[0].detail
+        );
+        check!(
+            sec("providers").map(|s| s.removed.len() == 1).unwrap_or(false)
+                && sec("python").map(|s| s.changed.len() == 1).unwrap_or(false),
+            "供应商线索移除 ×1；Python 版本变化 ×1"
+        );
+        check!(
+            diff.summary.contains("新增 4"),
+            "汇总：{}",
+            diff.summary
+        );
+
+        // 相同快照 → 无差异
+        let same = diff_snapshots(&a, &a);
+        check!(
+            same.sections.is_empty() && same.summary.contains("没有"),
+            "相同快照 → 无差异（{}）",
+            same.summary
+        );
+
+        // store 往返：save → snapshot_by_id → diff
+        let store =
+            crate::store::Store::open(&base.join("selftest-snapdiff.db")).unwrap();
+        let id_a = store.save_snapshot(&a).unwrap();
+        let id_b = store.save_snapshot(&b).unwrap();
+        let loaded_a = store.snapshot_by_id(id_a).unwrap();
+        let loaded_b = store.snapshot_by_id(id_b).unwrap();
+        check!(
+            diff_snapshots(&loaded_a, &loaded_b).summary == diff.summary,
+            "快照落库 → 按编号读回 → 差异一致"
+        );
+        let metas: Vec<SnapshotMeta> = store.snapshot_history(10);
+        check!(
+            metas.len() == 2 && metas[0].id == id_b,
+            "快照历史按时间倒序（最新在前）"
+        );
+        let _ = std::fs::remove_file(base.join("selftest-snapdiff.db"));
+    }
+
+    println!("[21] 档案导出 / 导入（自包含 JSON，不含任何密钥）");
+    {
+        use crate::model::{ProfileCounts, ProfileItem, ProfileResource};
+        use crate::share;
+
+        let store = crate::store::Store::open(&base.join("selftest-share.db")).unwrap();
+        let profile = ProfileResource {
+            id: 0,
+            name: "分享档案".into(),
+            description: "导出导入自检".into(),
+            agents: vec![],
+            counts: ProfileCounts::default(),
+            updated_at: String::new(),
+        };
+        let items = vec![
+            ProfileItem {
+                id: 0,
+                resource_type: "skill".into(),
+                resource_ref: "C:/lib/alpha".into(),
+                display: "alpha".into(),
+            },
+            ProfileItem {
+                id: 0,
+                resource_type: "mcp".into(),
+                resource_ref: "filesystem".into(),
+                display: "filesystem".into(),
+            },
+        ];
+        let pid = store.profile_save(&profile, &items).unwrap();
+
+        let outcome = share::export_profile(&store, pid).unwrap();
+        check!(
+            std::path::Path::new(&outcome.path).is_file() && outcome.items == 2,
+            "导出成功：{}（{} 项资源）",
+            outcome.path,
+            outcome.items
+        );
+        let text = std::fs::read_to_string(&outcome.path).unwrap();
+        check!(
+            text.contains("\"format\": \"agenthub-profile\"") && !text.contains("keyRef"),
+            "导出文件带 format 标记，且不含任何 keyRef/密钥字段"
+        );
+
+        // 同库导入：同名 → 自动后缀，不覆盖
+        let imported = share::import_profile(&store, std::path::Path::new(&outcome.path)).unwrap();
+        check!(
+            imported.name == "分享档案（导入）",
+            "同名档案导入自动加后缀：{}",
+            imported.name
+        );
+        let detail = store.profile_detail(imported.id).unwrap();
+        check!(
+            detail.items.len() == 2
+                && detail.items.iter().any(|i| i.resource_type == "mcp")
+                && detail.items.iter().any(|i| i.resource_type == "skill"),
+            "导入项完整（{} 项，skill 与 mcp 各就位）",
+            detail.items.len()
+        );
+
+        // 全新库导入：保留原名
+        let fresh = crate::store::Store::open(&base.join("selftest-share-fresh.db")).unwrap();
+        let r2 = share::import_profile(&fresh, std::path::Path::new(&outcome.path)).unwrap();
+        check!(
+            r2.name == "分享档案" && fresh.profile_list().len() == 1,
+            "全新库导入保留原名"
+        );
+
+        // 非法文件 / 不存在文件（坏文件放在 exports 目录里，列表应跳过它）
+        let bad = share::exports_dir(&store).join("bad.agenthub-profile.json");
+        std::fs::write(&bad, "{}").unwrap();
+        let err = share::import_profile(&store, &bad).unwrap_err();
+        check!(err.contains("format"), "非法文件被拒绝：{}", err);
+        let err2 = share::import_profile(&store, std::path::Path::new("Z:/不存在.json"))
+            .unwrap_err();
+        check!(!err2.is_empty(), "不存在的文件报错：{}", err2);
+
+        // 导出目录列表
+        let (metas, failed) = share::list_exports(&store);
+        check!(
+            metas.len() == 1 && metas[0].items == 2 && failed == 1,
+            "导出目录列表：{} 个有效文件（含 skill/mcp 分项计数），{} 个无效文件被忽略",
+            metas.len(),
+            failed
+        );
+        let _ = std::fs::remove_file(base.join("selftest-share.db"));
+        let _ = std::fs::remove_file(base.join("selftest-share-fresh.db"));
+    }
+
+    println!("[22] path.glob 能力与目录表登记");
+    {
+        use crate::capability::{catalog, invoke, EvalContext, RuleParams};
+        use crate::model::AppSettings;
+
+        let root = base.join("glob");
+        for rel in ["a/SKILL.md", "b/SKILL.md", "c/d/SKILL.md", "c/notes.txt"] {
+            let p = root.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(&p, "x").unwrap();
+        }
+        let settings = AppSettings::default();
+        let ctx = EvalContext::new(&[], &settings);
+        let params = RuleParams {
+            paths: vec![root.to_string_lossy().to_string()],
+            args: vec!["**/SKILL.md".into()],
+            ..Default::default()
+        };
+        let out = invoke("path.glob", &params, &ctx);
+        check!(
+            out.hit && out.detail.as_deref().unwrap_or("").contains("3 个条目"),
+            "**/SKILL.md 命中 3 个（{}）",
+            out.detail.as_deref().unwrap_or("—")
+        );
+        let flat = invoke(
+            "path.glob",
+            &RuleParams {
+                paths: vec![root.to_string_lossy().to_string()],
+                args: vec!["*.md".into()],
+                ..Default::default()
+            },
+            &ctx,
+        );
+        check!(!flat.hit, "*.md 不跨层匹配（顶层没有 md 文件）");
+        let sub = invoke(
+            "path.glob",
+            &RuleParams {
+                paths: vec![root.to_string_lossy().to_string()],
+                args: vec!["c/*.txt".into()],
+                ..Default::default()
+            },
+            &ctx,
+        );
+        check!(sub.hit, "c/*.txt 命中 notes.txt");
+
+        // glob 匹配器单元行为
+        check!(
+            crate::util::glob_match("a/*/c", "a/b/c") && !crate::util::glob_match("*.md", "b/c.md"),
+            "glob 匹配器：段内通配不跨层"
+        );
+        check!(
+            crate::util::glob_match("a/**/*.md", "a/b/c/d.md")
+                && crate::util::glob_match("**", "任意/路径"),
+            "glob 匹配器：** 跨任意层"
+        );
+
+        // 能力目录登记
+        let caps = catalog();
+        let probe = caps.iter().find(|c| c.id == "net.provider.probe");
+        check!(
+            probe.map(|c| c.implemented && c.tier_code == "T3").unwrap_or(false),
+            "net.provider.probe 已登记为 T3 且已实现"
+        );
+        check!(
+            caps.iter()
+                .find(|c| c.id == "path.glob")
+                .map(|c| c.implemented)
+                .unwrap_or(false),
+            "path.glob 已实现"
+        );
+        check!(
+            caps.len() == 30,
+            "能力目录共 {} 项（期望 30）",
+            caps.len()
+        );
+    }
+
     println!("\n=== 结果：{} 项通过，{} 项失败 ===", pass, fail);
     println!("沙箱残留（可手动删除）: {}", base.display());
     if fail > 0 {
@@ -1508,6 +2014,11 @@ pub fn run() {
             commands::provider_import,
             commands::provider_reveal_key,
             commands::vault_status,
+            commands::provider_test,
+            commands::snapshot_diff,
+            commands::profile_export,
+            commands::profile_export_list,
+            commands::profile_import,
             commands::provider_sync_plan,
             commands::provider_sync_apply,
             commands::profile_list,

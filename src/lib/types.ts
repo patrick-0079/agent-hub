@@ -316,6 +316,27 @@ export interface ProviderResource {
   maskedKey: string | null;
   enabled: boolean;
   notes: string;
+  /** 最近一次连通性测试结果（未测试时字段为空/零） */
+  health: ProviderHealth;
+}
+
+/** ok | no_key | error；空串 = 未测试 */
+export type ProviderHealthStatus = "ok" | "no_key" | "error" | "";
+
+export interface ProviderHealth {
+  status: ProviderHealthStatus;
+  httpStatus: number | null;
+  latencyMs: number;
+  models: number | null;
+  message: string;
+  testedAt: string;
+  endpoint: string;
+}
+
+/** 一次连通性测试的返回（含供应商标识） */
+export interface ProviderTestResult extends ProviderHealth {
+  providerId: number;
+  providerName: string;
 }
 
 export interface VaultStatus {
@@ -404,6 +425,54 @@ export interface SnapshotMeta {
   mcpServers: number;
   pythonEnvs: number;
   npmPackages: number;
+}
+
+/* ------------------------------------------------- 快照对比（M1） */
+
+export interface SnapshotDiffEntry {
+  key: string;
+  label: string;
+  detail: string;
+}
+
+export interface SnapshotDiffSection {
+  /** agents | skills | mcp | providers | python | npm */
+  resource: string;
+  title: string;
+  added: SnapshotDiffEntry[];
+  removed: SnapshotDiffEntry[];
+  changed: SnapshotDiffEntry[];
+}
+
+export interface SnapshotDiff {
+  aId: number;
+  aAt: string;
+  bId: number;
+  bAt: string;
+  sections: SnapshotDiffSection[];
+  summary: string;
+}
+
+/* ------------------------------------------------- 档案导出/导入（M1） */
+
+export interface ProfileExportMeta {
+  path: string;
+  name: string;
+  description: string;
+  items: number;
+  skillItems: number;
+  mcpItems: number;
+  providerItems: number;
+  agents: number;
+  exportedAt: string;
+  bytes: number;
+}
+
+export interface ProfileExportOutcome {
+  path: string;
+  name: string;
+  items: number;
+  exportsDir: string;
 }
 
 export interface Progress {

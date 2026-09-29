@@ -461,6 +461,111 @@ pub fn mask_secret(value: &str) -> String {
     format!("{}••••{} （{} 字符）", head, tail, chars.len())
 }
 
+/* ------------------------------------------------------------ glob 匹配 */
+
+/// 单段内的通配匹配：`*` 任意字符序列（不跨分隔符）、`?` 单个字符。
+/// 经典双指针回溯实现，无需正则引擎。
+fn segment_match(pattern: &str, text: &str) -> bool {
+    let p: Vec<char> = pattern.chars().collect();
+    let s: Vec<char> = text.chars().collect();
+    let (mut si, mut pi) = (0usize, 0usize);
+    let (mut star, mut mark) = (usize::MAX, 0usize);
+    while si < s.len() {
+        if pi < p.len() && (p[pi] == '?' || p[pi] == s[si]) {
+            si += 1;
+            pi += 1;
+        } else if pi < p.len() && p[pi] == '*' {
+            star = pi;
+            mark = si;
+            pi += 1;
+        } else if star != usize::MAX {
+            pi = star + 1;
+            mark += 1;
+            si = mark;
+        } else {
+            return false;
+        }
+    }
+    while pi < p.len() && p[pi] == '*' {
+        pi += 1;
+    }
+    pi == p.len()
+}
+
+/// 按 `/` 分段的 glob 匹配：`**` 匹配任意层（含零层）。
+pub fn glob_match(pattern: &str, text: &str) -> bool {
+    fn match_segments(p: &[&str], t: &[&str]) -> bool {
+        if p.is_empty() {
+            return t.is_empty();
+        }
+        if p[0] == "**" {
+            for skip in 0..=t.len() {
+                if match_segments(&p[1..], &t[skip..]) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if t.is_empty() {
+            return false;
+        }
+        if !segment_match(p[0], t[0]) {
+            return false;
+        }
+        match_segments(&p[1..], &t[1..])
+    }
+    let p: Vec<&str> = pattern.split('/').filter(|s| !s.is_empty()).collect();
+    let t: Vec<&str> = text.split('/').filter(|s| !s.is_empty()).collect();
+    match_segments(&p, &t)
+}
+
+/// 收集 `root` 下与 `pattern` 匹配的相对路径（`/` 分隔）。
+/// 深度与条目上限保护，防止巨型目录树把扫描卡死。
+pub fn glob_collect(
+    root: &Path,
+    pattern: &str,
+    out: &mut Vec<String>,
+    max_entries: usize,
+    max_depth: usize,
+) {
+    fn walk(
+        dir: &Path,
+        prefix: &str,
+        pattern: &str,
+        out: &mut Vec<String>,
+        max_entries: usize,
+        depth: usize,
+        max_depth: usize,
+    ) {
+        if depth > max_depth || out.len() >= max_entries {
+            return;
+        }
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            if out.len() >= max_entries {
+                return;
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            let rel = if prefix.is_empty() {
+                name.clone()
+            } else {
+                format!("{}/{}", prefix, name)
+            };
+            let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            if glob_match(pattern, &rel) {
+                out.push(rel.clone());
+            }
+            // 目录名本身也可能匹配（如 `**/skills`）；继续下钻收集子路径
+            if is_dir {
+                walk(&entry.path(), &rel, pattern, out, max_entries, depth + 1, max_depth);
+            }
+        }
+    }
+    walk(root, "", pattern, out, max_entries, 0, max_depth);
+}
+
 /* ------------------------------------------------------------- 主机信息 */
 
 pub fn host_info(app_version: &str, data_dir: &str, db_path: &str) -> HostInfo {
