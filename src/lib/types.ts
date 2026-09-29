@@ -250,6 +250,28 @@ export interface McpResource {
   url: string;
   enabled: boolean;
   notes: string;
+  /** 最近一次握手健康检查的结果（未测试时字段为空/零） */
+  health: McpHealth;
+}
+
+/** ok | timeout | error；空 = 未测试 */
+export type McpHealthStatus = "ok" | "timeout" | "error" | "";
+
+export interface McpHealth {
+  status: McpHealthStatus;
+  latencyMs: number;
+  protocolVersion: string | null;
+  serverName: string | null;
+  tools: number | null;
+  message: string;
+  testedAt: string;
+}
+
+/** 一次握手测试的返回（含服务器标识） */
+export interface McpHandshakeResult extends McpHealth {
+  serverId: number;
+  name: string;
+  transport: string;
 }
 
 export interface MergeChange {

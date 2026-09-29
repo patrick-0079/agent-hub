@@ -177,7 +177,7 @@ const CATALOG: &[(&str, Tier, &str, &str, bool, &[&str])] = &[
     ("pkg.npm.remove", Tier::Mutate, "卸载 npm 全局包", "移除全局包", false, &["args"]),
     ("py.env.create", Tier::Mutate, "创建 Python 环境", "通过 uv / conda 创建环境并锁定依赖", false, &["args", "paths"]),
     ("py.env.remove", Tier::Mutate, "删除 Python 环境", "删除已有环境（不可恢复，需二次确认）", false, &["paths"]),
-    ("proc.spawn.probe", Tier::Mutate, "MCP 握手探测", "实际启动 MCP 进程并完成 initialize 握手", false, &["args"]),
+    ("proc.spawn.probe", Tier::Mutate, "MCP 握手探测", "实际启动 MCP 进程（stdio）或发起 HTTP 请求，完成 initialize 握手并清点工具数；进程结束即恢复原状", true, &["args"]),
     ("net.provider.probe", Tier::Mutate, "供应商连通性测试", "对供应商端点发起一次最小只读请求（GET models）：返回延迟、模型数与错误原因；Key 只在内存中使用，不落日志不落库", true, &["args"]),
     ("path.delete", Tier::Mutate, "删除路径", "删除链接或目录 —— 全部先移入回收站（保留指向关系与内容），可一键恢复", true, &["paths"]),
     ("git.clone", Tier::Mutate, "克隆 Git 仓库", "把远程仓库浅克隆到临时目录（遵循设置里的网络代理）", true, &["args", "paths"]),

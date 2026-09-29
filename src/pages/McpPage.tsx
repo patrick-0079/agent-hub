@@ -11,6 +11,7 @@ import {
   SearchInput,
   SectionCard,
   SegmentedControl,
+  StatusDot,
   Toggle,
 } from "../components/ui";
 import { api, describeError } from "../lib/api";
@@ -37,6 +38,15 @@ function emptyResource(): McpResource {
     url: "",
     enabled: true,
     notes: "",
+    health: {
+      status: "",
+      latencyMs: 0,
+      protocolVersion: null,
+      serverName: null,
+      tools: null,
+      message: "",
+      testedAt: "",
+    },
   };
 }
 
@@ -60,6 +70,7 @@ function toResource(found: {
     url: found.url ?? "",
     enabled: true,
     notes: `从 ${found.sourceAgent} 导入`,
+    health: emptyResource().health,
   };
 }
 
@@ -288,6 +299,7 @@ export function McpPage() {
   const [query, setQuery] = useState("");
   const [source, setSource] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [testing, setTesting] = useState<Set<number>>(new Set());
 
   const load = () => {
     setLoading(true);
@@ -305,6 +317,47 @@ export function McpPage() {
 
   const servers = snapshot?.mcpServers ?? [];
   const enabledCount = resources.filter((r) => r.enabled).length;
+
+  /** 对单个 MCP 服务器做一次真实握手（stdio 起进程 / http 发 initialize） */
+  const testOne = async (res: McpResource) => {
+    setTesting((prev) => new Set(prev).add(res.id));
+    try {
+      const result = await api.mcpTest(res.id);
+      setResources((prev) =>
+        prev.map((r) =>
+          r.id === res.id
+            ? {
+                ...r,
+                health: {
+                  status: result.status,
+                  latencyMs: result.latencyMs,
+                  protocolVersion: result.protocolVersion,
+                  serverName: result.serverName,
+                  tools: result.tools,
+                  message: result.message,
+                  testedAt: result.testedAt,
+                },
+              }
+            : r,
+        ),
+      );
+    } catch (error) {
+      setBanner(describeError(error));
+    } finally {
+      setTesting((prev) => {
+        const next = new Set(prev);
+        next.delete(res.id);
+        return next;
+      });
+    }
+  };
+
+  /** 批量握手（串行：stdio 型会真实起进程，逐个来） */
+  const testAll = async () => {
+    for (const res of resources.filter((r) => r.enabled)) {
+      await testOne(res);
+    }
+  };
 
   const toggleEnabled = async (res: McpResource) => {
     try {
@@ -385,6 +438,19 @@ export function McpPage() {
             />
             {tab === "managed" ? (
               <>
+                <button
+                  type="button"
+                  className="btn-ghost btn-sm"
+                  onClick={() => void testAll()}
+                  disabled={enabledCount === 0 || testing.size > 0}
+                  title="逐个真实启动（stdio）或发 HTTP initialize，验证每个服务器能否完成握手"
+                >
+                  <Icon
+                    name="play"
+                    className={`h-3.5 w-3.5 ${testing.size > 0 ? "animate-pulse-soft" : ""}`}
+                  />
+                  {testing.size > 0 ? `握手中（${testing.size}）` : "握手测试"}
+                </button>
                 <button
                   type="button"
                   className="btn-ghost btn-sm"
@@ -491,8 +557,48 @@ export function McpPage() {
                           ? `${res.command} ${res.args.join(" ")}`.trim()
                           : res.url}
                       </span>
+                      {res.health && res.health.status && (
+                        <span
+                          className={`mt-0.5 flex items-center gap-2 text-[11px] leading-relaxed ${
+                            res.health.status === "ok"
+                              ? "text-slate-400"
+                              : res.health.status === "timeout"
+                                ? "text-amber-300"
+                                : "text-rose-300"
+                          }`}
+                          title={res.health.message}
+                        >
+                          <StatusDot
+                            state={
+                              res.health.status === "ok"
+                                ? "ok"
+                                : res.health.status === "timeout"
+                                  ? "warn"
+                                  : "error"
+                            }
+                          />
+                          {res.health.status === "ok"
+                            ? `握手 ${res.health.latencyMs} ms${
+                                res.health.tools != null ? ` · ${res.health.tools} 个工具` : ""
+                              }${res.health.testedAt ? ` · ${res.health.testedAt}` : ""}`
+                            : res.health.message}
+                        </span>
+                      )}
                     </span>
                     <div className="flex shrink-0 items-center gap-1.5">
+                      <button
+                        type="button"
+                        className="btn-ghost btn-sm"
+                        onClick={() => void testOne(res)}
+                        disabled={testing.has(res.id)}
+                        title="真实握手一次：stdio 启动进程 / http 发 initialize，进程结束即恢复"
+                      >
+                        <Icon
+                          name="play"
+                          className={`h-3.5 w-3.5 ${testing.has(res.id) ? "animate-pulse-soft" : ""}`}
+                        />
+                        {testing.has(res.id) ? "握手中" : "握手"}
+                      </button>
                       <button
                         type="button"
                         className="btn-ghost btn-sm"
@@ -608,8 +714,8 @@ export function McpPage() {
                       {isOpen && (
                         <div className="space-y-2 border-t border-ink-800 px-3.5 py-3">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Badge tone="slate" icon="alert">
-                              健康检查：未检测（M3）
+                            <Badge tone="slate" icon="info">
+                              握手测试：导入为受管资源后可测
                             </Badge>
                             <span className="mono text-[10.5px] text-slate-500">
                               {server.sourceFile}
@@ -665,6 +771,19 @@ export function McpPage() {
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
               每次写入前把目标文件备份到数据目录，可在「历史与审计 → 备份」里一键回滚。
+            </p>
+          </Card>
+          <Card className="border-dashed">
+            <div className="flex items-center gap-2">
+              <Icon name="play" className="h-4 w-4 text-accent-400" />
+              <span className="text-sm text-slate-200">真实握手健康检查</span>
+              <Badge tone="teal" className="ml-auto">
+                已实现
+              </Badge>
+            </div>
+            <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+              「握手」按钮真实启动进程（stdio）或发 initialize（http），完成 JSON-RPC
+              握手并清点工具数；进程结束即恢复原状，不写任何配置。
             </p>
           </Card>
           <Card className="border-dashed">

@@ -253,7 +253,7 @@ impl Store {
             Err(_) => return Vec::new(),
         };
         let mut stmt = match conn.prepare(
-            "SELECT id, name, transport, command, args_json, env_json, url, enabled, notes
+            "SELECT id, name, transport, command, args_json, env_json, url, enabled, notes, health
              FROM mcp_server ORDER BY name COLLATE NOCASE",
         ) {
             Ok(s) => s,
@@ -262,6 +262,9 @@ impl Store {
         let rows = stmt.query_map([], |row| {
             let args_json: String = row.get(4)?;
             let env_json: String = row.get(5)?;
+            let health_raw: String = row
+                .get::<_, Option<String>>(9)?
+                .unwrap_or_else(|| "unknown".to_string());
             Ok(crate::model::McpResource {
                 id: row.get(0)?,
                 name: row.get(1)?,
@@ -272,6 +275,7 @@ impl Store {
                 url: row.get::<_, Option<String>>(6)?.unwrap_or_default(),
                 enabled: row.get::<_, i64>(7)? != 0,
                 notes: row.get(8)?,
+                health: serde_json::from_str(&health_raw).unwrap_or_default(),
             })
         });
         match rows {
@@ -325,6 +329,16 @@ impl Store {
             ],
         )?;
         Ok(conn.last_insert_rowid())
+    }
+
+    /// 更新 MCP 健康状态（只由握手检查写入，普通保存不重置）
+    pub fn mcp_set_health(&self, id: i64, health_json: &str) -> Result<()> {
+        let conn = self.conn()?;
+        conn.execute(
+            "UPDATE mcp_server SET health = ?1, updated_at = ?2 WHERE id = ?3",
+            params![health_json, crate::util::now_human(), id],
+        )?;
+        Ok(())
     }
 
     pub fn mcp_delete(&self, id: i64) -> Result<()> {

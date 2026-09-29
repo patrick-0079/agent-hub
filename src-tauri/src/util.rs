@@ -101,6 +101,14 @@ pub fn expand_path(raw: &str) -> String {
     s
 }
 
+/// 展开普通值里的 `%VAR%` / `$VAR` / `${VAR}` 引用（不做路径分隔符转换）。
+/// MCP 环境变量值就是这种形态：界面里存引用，实际传给进程前在这里展开。
+pub fn expand_value(raw: &str) -> String {
+    let s = raw.trim().to_string();
+    let s = expand_windows_vars(&s);
+    expand_unix_vars(&s)
+}
+
 pub fn expand_buf(raw: &str) -> PathBuf {
     PathBuf::from(expand_path(raw))
 }

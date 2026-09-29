@@ -73,6 +73,11 @@ fn build_agent(proxy: &str) -> Result<ureq::Agent, String> {
     Ok(builder.build())
 }
 
+/// 供其它网络探测（如 MCP HTTP 握手）复用的带超时/代理 Agent
+pub fn network_agent(proxy: &str) -> Result<ureq::Agent, String> {
+    build_agent(proxy)
+}
+
 /// 从响应体里数模型个数（OpenAI/Anthropic 的 data 数组，或 Ollama 的 models 数组）
 fn count_models(body: &str) -> Option<usize> {
     let v: serde_json::Value = serde_json::from_str(body).ok()?;

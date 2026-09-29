@@ -16,6 +16,7 @@ import type {
   ExecutableInfo,
   HostInfo,
   ManifestInfo,
+  McpHandshakeResult,
   McpResource,
   ProfileDetail,
   ProfileExportMeta,
@@ -109,6 +110,7 @@ export const api = {
   mcpSave: (resource: McpResource) => call<McpResource[]>("mcp_save", { resource }),
   mcpRemove: (id: number) => call<McpResource[]>("mcp_remove", { id }),
   mcpImport: (items: McpResource[]) => call<McpResource[]>("mcp_import", { items }),
+  mcpTest: (id: number) => call<McpHandshakeResult>("mcp_test", { id }),
   mcpSyncPlan: (agentIds: string[], overwriteUnmanaged = false) =>
     call<SyncPlan>("mcp_sync_plan", { agentIds, overwriteUnmanaged }),
   mcpSyncApply: (agentIds: string[], overwriteUnmanaged = false) =>

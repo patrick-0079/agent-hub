@@ -838,6 +838,31 @@ pub fn provider_test(
 
 /* --------------------------------------------- 快照对比与档案导出导入 */
 
+/// 测试一个 MCP 服务器的握手健康：真实启动（stdio）或发 HTTP initialize，
+/// 结果落库 mcp_server.health。环境变量值里的 %VAR% 引用在展开瞬间注入。
+#[tauri::command]
+pub fn mcp_test(
+    state: State<'_, AppState>,
+    id: i64,
+) -> Result<crate::handshake::McpHandshakeResult, String> {
+    let target = state
+        .store
+        .mcp_list()
+        .into_iter()
+        .find(|m| m.id == id)
+        .ok_or_else(|| "MCP 服务器不存在".to_string())?;
+    let proxy = state
+        .settings
+        .lock()
+        .map(|s| s.network_proxy.clone())
+        .unwrap_or_default();
+    let result = crate::handshake::handshake(&target, &proxy);
+    if let Ok(json) = serde_json::to_string(&result) {
+        let _ = state.store.mcp_set_health(id, &json);
+    }
+    Ok(result)
+}
+
 /// 对比两份扫描快照（A 为旧、B 为新）
 #[tauri::command]
 pub fn snapshot_diff(

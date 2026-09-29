@@ -309,6 +309,23 @@ pub struct McpResource {
     pub url: String,
     pub enabled: bool,
     pub notes: String,
+    /// 最近一次握手健康检查的结果（未测试时为默认值）
+    #[serde(default)]
+    pub health: McpHealth,
+}
+
+/// MCP 握手结果（存 mcp_server.health 列）
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct McpHealth {
+    /// ok | timeout | error；空 = 未测试
+    pub status: String,
+    pub latency_ms: u64,
+    pub protocol_version: Option<String>,
+    pub server_name: Option<String>,
+    pub tools: Option<usize>,
+    pub message: String,
+    pub tested_at: String,
 }
 
 /* --------------------------------------------------------- Provider 资源 */

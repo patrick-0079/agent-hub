@@ -4,6 +4,7 @@ mod commands;
 pub mod actions;
 pub mod agentdef;
 pub mod capability;
+pub mod handshake;
 pub mod merge;
 pub mod model;
 pub mod probe;
@@ -136,6 +137,7 @@ pub fn cli_db_check() {
         url: String::new(),
         enabled: true,
         notes: "自检临时条目".to_string(),
+        health: Default::default(),
     };
     match store.mcp_upsert(&probe) {
         Ok(id) => {
@@ -168,6 +170,61 @@ pub fn cli_db_check() {
 /// 沙箱自检：在临时目录里完整跑一遍 T2/T3 链路，不触碰真实技能库。
 ///
 /// 用法：`agenthub --self-test`
+/// 极简 HTTP mock（自检用）：读取请求行，按路径路由到 (状态码, 响应体)。
+/// mock 线程可能仍在 accept() 等待额外连接：各自都有连接数上限，随进程退出回收。
+fn spawn_mock_server(
+    router: fn(&str) -> (u16, String),
+    max_connections: usize,
+) -> String {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for _ in 0..max_connections {
+            let Ok((mut stream, _)) = listener.accept() else {
+                break;
+            };
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(600)));
+            let mut req = Vec::new();
+            let mut chunk = [0u8; 2048];
+            loop {
+                match stream.read(&mut chunk) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        req.extend_from_slice(&chunk[..n]);
+                        if req.windows(4).any(|w| w == b"\r\n\r\n") {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+            let first_line = String::from_utf8_lossy(&req);
+            let path = first_line
+                .split_whitespace()
+                .nth(1)
+                .unwrap_or("/")
+                .to_string();
+            let (status, body) = router(&path);
+            let reason = match status {
+                200 => "OK",
+                401 => "Unauthorized",
+                404 => "Not Found",
+                _ => "Error",
+            };
+            let response = format!(
+                "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                status,
+                reason,
+                body.len(),
+                body
+            );
+            let _ = stream.write_all(response.as_bytes());
+        }
+    });
+    format!("http://127.0.0.1:{}", port)
+}
+
 pub fn cli_self_test() {
     use actions::BrokenRef;
     use std::path::Path;
@@ -630,6 +687,7 @@ pub fn cli_self_test() {
             url: String::new(),
             enabled: true,
             notes: String::new(),
+            health: Default::default(),
         };
         let resources = vec![res_a.clone()];
         let defs = vec![def];
@@ -777,6 +835,7 @@ pub fn cli_self_test() {
             url: String::new(),
             enabled: true,
             notes: String::new(),
+            health: Default::default(),
         };
         let with_collide = vec![collide];
         let plan3 = crate::sync::plan_sync(&SyncRequest {
@@ -840,6 +899,7 @@ pub fn cli_self_test() {
             url: String::new(),
             enabled: true,
             notes: String::new(),
+            health: Default::default(),
         }];
         let applied3 = crate::sync::apply_sync(&SyncRequest {
             defs: &[def2],
@@ -1181,6 +1241,7 @@ pub fn cli_self_test() {
             url: String::new(),
             enabled: true,
             notes: "从扫描导入".into(),
+            health: Default::default(),
         };
         match store.mcp_upsert(&mcp) {
             Ok(id) => {
@@ -1408,61 +1469,7 @@ pub fn cli_self_test() {
     println!("[19] 供应商连通性测试 net.provider.probe（本地 mock 服务器）");
     {
         use crate::probe::test_provider;
-        use std::io::{Read, Write};
         use std::net::TcpListener;
-
-        /// 极简 HTTP mock：读取请求行，按路径路由到 (状态码, 响应体)
-        fn spawn_mock(
-            router: fn(&str) -> (u16, String),
-            max_connections: usize,
-        ) -> (String, std::thread::JoinHandle<()>) {
-            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-            let port = listener.local_addr().unwrap().port();
-            let handle = std::thread::spawn(move || {
-                for _ in 0..max_connections {
-                    let Ok((mut stream, _)) = listener.accept() else {
-                        break;
-                    };
-                    let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(600)));
-                    let mut req = Vec::new();
-                    let mut chunk = [0u8; 2048];
-                    loop {
-                        match stream.read(&mut chunk) {
-                            Ok(0) => break,
-                            Ok(n) => {
-                                req.extend_from_slice(&chunk[..n]);
-                                if req.windows(4).any(|w| w == b"\r\n\r\n") {
-                                    break;
-                                }
-                            }
-                            Err(_) => break,
-                        }
-                    }
-                    let first_line = String::from_utf8_lossy(&req);
-                    let path = first_line
-                        .split_whitespace()
-                        .nth(1)
-                        .unwrap_or("/")
-                        .to_string();
-                    let (status, body) = router(&path);
-                    let reason = match status {
-                        200 => "OK",
-                        401 => "Unauthorized",
-                        404 => "Not Found",
-                        _ => "Error",
-                    };
-                    let response = format!(
-                        "HTTP/1.1 {} {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                        status,
-                        reason,
-                        body.len(),
-                        body
-                    );
-                    let _ = stream.write_all(response.as_bytes());
-                }
-            });
-            (format!("http://127.0.0.1:{}", port), handle)
-        }
 
         // 1) OpenAI 兼容 + 端点兜底：/models 404 → /v1/models 200
         fn openai_router(path: &str) -> (u16, String) {
@@ -1472,7 +1479,7 @@ pub fn cli_self_test() {
                 (404, r#"{"error":"not found"}"#.into())
             }
         }
-        let base1 = spawn_mock(openai_router, 3).0;
+        let base1 = spawn_mock_server(openai_router, 3);
         let r = test_provider(&base1, "openai-compatible", None, "");
         check!(
             r.status == "ok" && r.http_status == Some(200) && r.models == Some(3),
@@ -1491,7 +1498,7 @@ pub fn cli_self_test() {
         fn unauthorized(_path: &str) -> (u16, String) {
             (401, r#"{"error":"missing api key"}"#.into())
         }
-        let base2 = spawn_mock(unauthorized, 3).0;
+        let base2 = spawn_mock_server(unauthorized, 3);
         let r = test_provider(&base2, "openai-compatible", None, "");
         check!(
             r.status == "no_key" && r.http_status == Some(401),
@@ -1503,7 +1510,7 @@ pub fn cli_self_test() {
         fn echo_key(_path: &str) -> (u16, String) {
             (401, r#"{"error":"invalid key sk-sandbox-echo-0123456789"}"#.into())
         }
-        let base3 = spawn_mock(echo_key, 2).0;
+        let base3 = spawn_mock_server(echo_key, 2);
         let r = test_provider(&base3, "openai-compatible", Some("sk-sandbox-echo-0123456789"), "");
         check!(
             r.status == "error" && r.message.contains("***") && !r.message.contains("sk-sandbox-echo-0123456789"),
@@ -1533,7 +1540,7 @@ pub fn cli_self_test() {
                 (404, "{}".into())
             }
         }
-        let base5 = spawn_mock(anthropic_router, 2).0;
+        let base5 = spawn_mock_server(anthropic_router, 2);
         let r = test_provider(&base5, "anthropic", None, "");
         check!(
             r.status == "ok" && r.endpoint.ends_with("/v1/models") && r.models == Some(0),
@@ -1549,7 +1556,7 @@ pub fn cli_self_test() {
                 (404, "{}".into())
             }
         }
-        let base6 = spawn_mock(ollama_router, 2).0;
+        let base6 = spawn_mock_server(ollama_router, 2);
         let raw_base = base6.trim_start_matches("http://").to_string();
         let r = test_provider(&raw_base, "ollama", None, "");
         check!(
@@ -1902,6 +1909,126 @@ pub fn cli_self_test() {
         );
     }
 
+    println!("[23] MCP 握手健康检查 proc.spawn.probe（stdio + http）");
+    {
+        use crate::handshake::handshake;
+        use crate::model::{EnvPair, McpResource};
+
+        let mk = |transport: &str, command: &str, args: Vec<String>, url: &str, env: Vec<EnvPair>| {
+            McpResource {
+                id: 0,
+                name: "sandbox-mcp".into(),
+                transport: transport.into(),
+                command: command.into(),
+                args,
+                env,
+                url: url.into(),
+                enabled: true,
+                notes: String::new(),
+                health: Default::default(),
+            }
+        };
+
+        // 1) stdio：node 模拟一个真正会说 JSON-RPC 的 MCP 服务器
+        let node = crate::util::resolve_program("node", &[]);
+        let mock_script = r#"const rl=require('readline').createInterface({input:process.stdin});
+rl.on('line',l=>{let m;try{m=JSON.parse(l)}catch(e){return}
+if(m.id===1){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:1,result:{protocolVersion:'2024-11-05',capabilities:{},serverInfo:{name:'mock-'+(process.env.SELFTEST_TOKEN||'node'),version:'1.0'}}})+'\n')}
+else if(m.id===2){process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:2,result:{tools:[{name:'echo'},{name:'ping'}]}})+'\n')}})"#;
+        match &node {
+            Some(node) => {
+                std::env::set_var("AGENTHUB_SELFTEST_TOKEN", "expanded-ok");
+                let res = mk(
+                    "stdio",
+                    &node.to_string_lossy(),
+                    vec!["-e".into(), mock_script.into()],
+                    "",
+                    vec![EnvPair {
+                        key: "SELFTEST_TOKEN".into(),
+                        value: "%AGENTHUB_SELFTEST_TOKEN%".into(),
+                    }],
+                );
+                let r = handshake(&res, "");
+                check!(
+                    r.status == "ok"
+                        && r.protocol_version.as_deref() == Some("2024-11-05")
+                        && r.tools == Some(2),
+                    "stdio 握手：initialize + tools/list（{}，{} 个工具）",
+                    r.message,
+                    r.tools.unwrap_or(0)
+                );
+                check!(
+                    r.server_name.as_deref() == Some("mock-expanded-ok"),
+                    "环境变量 %VAR% 引用在传给进程前展开（serverInfo.name = {:?}）",
+                    r.server_name
+                );
+                check!(r.latency_ms > 0, "记录了启动到握手的耗时（{} ms）", r.latency_ms);
+
+                // 2) 进程活着但不说 JSON-RPC → timeout（而不是把进程挂死）
+                let silent = mk(
+                    "stdio",
+                    &node.to_string_lossy(),
+                    vec!["-e".into(), "setInterval(function(){},1000)".into()],
+                    "",
+                    vec![],
+                );
+                let r = handshake(&silent, "");
+                check!(r.status == "timeout", "静默进程 → timeout（{}）", r.message);
+            }
+            None => {
+                check!(false, "未找到 node，跳过 stdio 握手（CI 环境应预装 node）");
+            }
+        }
+
+        // 3) 命令不存在 → 明确报「找不到命令」
+        let r = handshake(&mk("stdio", "agenthub-no-such-cmd-xyz", vec![], "", vec![]), "");
+        check!(
+            r.status == "error" && r.message.contains("找不到命令"),
+            "命令不存在 → error（{}）",
+            r.message
+        );
+
+        // 4) http：Streamable HTTP 风格的 initialize 响应
+        fn mcp_http_router(_path: &str) -> (u16, String) {
+            (
+                200,
+                r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","serverInfo":{"name":"mock-http","version":"0.1"}}}"#.into(),
+            )
+        }
+        let base = spawn_mock_server(mcp_http_router, 2);
+        let r = handshake(&mk("http", "", vec![], &base, vec![]), "");
+        check!(
+            r.status == "ok"
+                && r.protocol_version.as_deref() == Some("2025-03-26")
+                && r.server_name.as_deref() == Some("mock-http"),
+            "http 握手：{}",
+            r.message
+        );
+
+        // 5) http 端口关闭 → error
+        let dead_port = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let p = l.local_addr().unwrap().port();
+            drop(l);
+            p
+        };
+        let r = handshake(
+            &mk("http", "", vec![], &format!("http://127.0.0.1:{}", dead_port), vec![]),
+            "",
+        );
+        check!(r.status == "error", "http 端口关闭 → error（{}）", r.message);
+
+        // 6) 能力目录：proc.spawn.probe 已实现
+        check!(
+            crate::capability::catalog()
+                .iter()
+                .find(|c| c.id == "proc.spawn.probe")
+                .map(|c| c.implemented)
+                .unwrap_or(false),
+            "proc.spawn.probe 在能力目录中标记为已实现"
+        );
+    }
+
     println!("\n=== 结果：{} 项通过，{} 项失败 ===", pass, fail);
     println!("沙箱残留（可手动删除）: {}", base.display());
     if fail > 0 {
@@ -2004,6 +2131,7 @@ pub fn run() {
             commands::mcp_save,
             commands::mcp_remove,
             commands::mcp_import,
+            commands::mcp_test,
             commands::mcp_sync_plan,
             commands::mcp_sync_apply,
             commands::backups_list,
