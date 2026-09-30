@@ -397,6 +397,18 @@ export interface VaultStatus {
   message: string;
 }
 
+/** 保险库里一个密钥的视图信息（明文永不出现） */
+export interface VaultKeyInfo {
+  /** 密钥标识（如 provider:opencode-patrick 或自定义名） */
+  id: string;
+  /** 掩码值（无法解密时为 null） */
+  masked: string | null;
+  /** 密文在当前用户下是否可解密 */
+  healthy: boolean;
+  /** 关联的供应商名称（provider: 前缀时） */
+  linkedProvider: string | null;
+}
+
 /* ------------------------------------------------------------ Profile 档案 */
 
 export interface ProfileCounts {

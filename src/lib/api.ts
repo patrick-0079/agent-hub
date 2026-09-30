@@ -48,6 +48,7 @@ import type {
   TrashDetail,
   TrashEntry,
   TrashStats,
+  VaultKeyInfo,
   VaultStatus,
 } from "./types";
 
@@ -152,6 +153,11 @@ export const api = {
     call<ProviderResource[]>("provider_import", { items }),
   providerRevealKey: (id: number) => call<string>("provider_reveal_key", { id }),
   vaultStatus: () => call<VaultStatus>("vault_status"),
+  vaultKeys: () => call<VaultKeyInfo[]>("vault_keys"),
+  vaultKeySet: (id: string, secret: string) =>
+    call<VaultKeyInfo[]>("vault_key_set", { id, secret }),
+  vaultKeyRemove: (id: string) => call<VaultKeyInfo[]>("vault_key_remove", { id }),
+  vaultReveal: (id: string) => call<string>("vault_reveal", { id }),
   providerTest: (id: number) => call<ProviderTestResult>("provider_test", { id }),
   providerBalanceQuery: (id: number) =>
     call<ProviderBalanceResult>("provider_balance_query", { id }),

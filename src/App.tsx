@@ -50,7 +50,11 @@ const PAGE_META: Record<Route, { title: string; subtitle: string; icon: IconName
     subtitle: "删除的链接与目录都先到这里：可逐条或按对象恢复，永久删除不可撤销",
     icon: "trash",
   },
-  vault: { title: "密钥保险库", subtitle: "API Key 加密存储，明文永不落库", icon: "vault" },
+  vault: {
+    title: "密钥保险库",
+    subtitle: "密钥清单 / 新增 / 显式查看 / 删除 / 健康检查 —— 明文永不落库",
+    icon: "vault",
+  },
   settings: { title: "设置", subtitle: "工具链探测、扫描范围与外观", icon: "settings" },
 };
 

@@ -876,6 +876,96 @@ pub fn provider_balance_query(
     Ok(result)
 }
 
+/* --------------------------------------------------------- 保险库管理 */
+
+/// 保险库里一个密钥的视图信息（明文永不出现）
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultKeyInfo {
+    /// 密钥标识（如 provider:opencode-patrick 或自定义名）
+    pub id: String,
+    /// 掩码值（无法解密时为 None）
+    pub masked: Option<String>,
+    /// 密文在当前用户下是否可解密
+    pub healthy: bool,
+    /// 关联的供应商名称（provider: 前缀时）
+    pub linked_provider: Option<String>,
+}
+
+fn vault_keys_inner(state: &AppState) -> Vec<VaultKeyInfo> {
+    let providers = state.store.provider_list();
+    state
+        .vault
+        .ids()
+        .into_iter()
+        .map(|id| {
+            let masked = state.vault.masked(&id);
+            let healthy = state.vault.get(&id).is_some();
+            let linked_provider = id.strip_prefix("provider:").map(|name| {
+                providers
+                    .iter()
+                    .find(|p| p.name.eq_ignore_ascii_case(name))
+                    .map(|p| p.name.clone())
+                    .unwrap_or_else(|| name.to_string())
+            });
+            VaultKeyInfo {
+                id,
+                masked,
+                healthy,
+                linked_provider,
+            }
+        })
+        .collect()
+}
+
+/// 全部密钥清单（掩码 + 可解密状态 + 供应商关联）
+#[tauri::command]
+pub fn vault_keys(state: State<'_, AppState>) -> Vec<VaultKeyInfo> {
+    vault_keys_inner(&state)
+}
+
+/// 新增 / 更新一个密钥（DPAPI 加密落盘；secret 传空串表示删除）
+#[tauri::command]
+pub fn vault_key_set(
+    state: State<'_, AppState>,
+    id: String,
+    secret: String,
+) -> Result<Vec<VaultKeyInfo>, String> {
+    let id = id.trim().to_string();
+    if id.is_empty() {
+        return Err("密钥标识不能为空".to_string());
+    }
+    if id.contains("..") || id.starts_with('.') {
+        return Err("密钥标识包含非法字符".to_string());
+    }
+    state
+        .vault
+        .set(&id, &secret)
+        .map_err(|e| format!("写入保险库失败：{}", e))?;
+    Ok(vault_keys_inner(&state))
+}
+
+/// 删除一个密钥（供应商关联会一并失效，界面给出提示）
+#[tauri::command]
+pub fn vault_key_remove(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Vec<VaultKeyInfo>, String> {
+    state
+        .vault
+        .remove(&id)
+        .map_err(|e| format!("删除失败：{}", e))?;
+    Ok(vault_keys_inner(&state))
+}
+
+/// 显式查看明文（界面需二次确认；不写日志）
+#[tauri::command]
+pub fn vault_reveal(state: State<'_, AppState>, id: String) -> Result<String, String> {
+    state.vault.get(&id).ok_or_else(|| {
+        "保险库中没有该密钥，或密文无法解密（可能来自其它用户/机器）".to_string()
+    })
+}
+
 /* --------------------------------------------- 快照对比与档案导出导入 */
 
 /// 测试一个 MCP 服务器的握手健康：真实启动（stdio）或发 HTTP initialize，
