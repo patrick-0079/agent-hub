@@ -86,6 +86,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     if (cursor >= filtered.length) setCursor(Math.max(0, filtered.length - 1));
   }, [filtered.length, cursor]);
 
+  // 滚动让选中项可见（必须在提前返回之前：所有 hook 的调用次数在开/关两态下一致，
+  // 否则 React 检测到 hook 数量变化会卸载整棵树 —— 这正是「点搜索黑屏」的根因）
+  useEffect(() => {
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-idx="${cursor}"]`);
+    el?.scrollIntoView({ block: "nearest" });
+  }, [cursor, open]);
+
   if (!open) return null;
 
   const activate = (cmd: Command) => {
@@ -110,13 +117,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     }
   };
 
-  // 滚动让选中项可见
-  useEffect(() => {
-    const el = listRef.current?.querySelector<HTMLElement>(`[data-idx="${cursor}"]`);
-    el?.scrollIntoView({ block: "nearest" });
-  }, [cursor]);
-
-  let lastGroup = "";
+  // 分组起始行（渲染期纯计算，不做闭包可变状态）
+  const groupStarts = new Set<number>();
+  filtered.forEach((cmd, idx) => {
+    if (idx === 0 || cmd.group !== filtered[idx - 1].group) {
+      groupStarts.add(idx);
+    }
+  });
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[12vh]">
@@ -144,8 +151,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             </p>
           ) : (
             filtered.map((cmd, idx) => {
-              const showGroup = cmd.group !== lastGroup;
-              lastGroup = cmd.group;
+              const showGroup = groupStarts.has(idx);
               const active = idx === cursor;
               const current = cmd.id === `page:${route}`;
               return (

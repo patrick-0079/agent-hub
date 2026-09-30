@@ -34,91 +34,97 @@ export type IconName =
   | "trash"
   | "dot";
 
+/** 图标集：统一 24×24 网格 / 圆角端点 / 1.7 描边，几何规整（Lucide 风格比例） */
 const PATHS: Record<IconName, React.ReactNode> = {
   dashboard: (
     <>
-      <rect x="3" y="3" width="7.5" height="7.5" rx="2" />
-      <rect x="13.5" y="3" width="7.5" height="7.5" rx="2" />
-      <rect x="3" y="13.5" width="7.5" height="7.5" rx="2" />
-      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" />
+      <rect x="3" y="3" width="7.5" height="7.5" rx="1.8" />
+      <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.8" />
+      <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.8" />
+      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.8" />
     </>
   ),
   providers: (
-    <path d="M6.5 18.5h10.8a4.2 4.2 0 0 0 .5-8.4 6.3 6.3 0 0 0-12-1.6A3.7 3.7 0 0 0 6.5 18.5Z" />
+    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
   ),
   skills: (
     <>
-      <path d="M12 3a6.5 6.5 0 0 0-3.7 11.8V18h7.4v-3.2A6.5 6.5 0 0 0 12 3Z" />
-      <path d="M9.5 21h5" />
+      <path d="M9 18h6M10 21.5h4" />
+      <path d="M15.1 14c.2-1 .7-1.8 1.4-2.5A4.6 4.6 0 0 0 18 8a6 6 0 0 0-12 0c0 1 .2 2.2 1.5 3.5.7.7 1.2 1.5 1.4 2.5" />
     </>
   ),
   mcp: (
     <>
-      <circle cx="12" cy="12" r="3" />
-      <circle cx="4.5" cy="5" r="2" />
-      <circle cx="19.5" cy="5" r="2" />
-      <circle cx="4.5" cy="19" r="2" />
-      <circle cx="19.5" cy="19" r="2" />
-      <path d="m6 6.4 3.9 3.6M18 6.4 14.1 10M6 17.6 9.9 14M18 17.6 14.1 14" />
+      <circle cx="12" cy="12" r="2.6" />
+      <circle cx="5" cy="5" r="1.9" />
+      <circle cx="19" cy="5" r="1.9" />
+      <circle cx="5" cy="19" r="1.9" />
+      <circle cx="19" cy="19" r="1.9" />
+      <path d="M6.4 6.4 9.5 9.5M17.6 6.4 14.5 9.5M6.4 17.6 9.5 14.5M17.6 17.6 14.5 14.5" />
     </>
   ),
   npm: (
     <>
-      <path d="M12 3 21 8.5v7L12 21 3 15.5v-7L12 3Z" />
-      <path d="M12 3v18M3 8.5h18" />
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+      <path d="M3.3 7 12 12l8.7-5M12 22V12" />
     </>
   ),
   python: <path d="m9.5 8-5 4 5 4M14.5 8l5 4-5 4" />,
   profiles: (
     <>
-      <path d="m12 3 9 4.8-9 4.8-9-4.8L12 3Z" />
-      <path d="m3 12.6 9 4.8 9-4.8M3 17.2l9 4.8 9-4.8" />
+      <path d="M12 2 2 7l10 5 10-5-10-5Z" />
+      <path d="m2 17 10 5 10-5M2 12l10 5 10-5" />
     </>
   ),
   agents: (
     <>
-      <rect x="4" y="8" width="16" height="12" rx="3" />
-      <path d="M12 8V4M9 13.5h.01M15 13.5h.01M9.5 17h5" />
+      <rect x="5" y="8" width="14" height="12" rx="3" />
+      <path d="M12 8V4.6" />
+      <circle cx="12" cy="3.4" r="1.3" />
+      <path d="M9.4 13.5h.01M14.6 13.5h.01M9.8 17h4.4" />
     </>
   ),
   adapter: (
     <>
-      <path d="M3 7h9M18 7h3M3 17h4M13 17h8" />
-      <circle cx="15" cy="7" r="2.4" />
-      <circle cx="10" cy="17" r="2.4" />
+      <path d="M3 7h18M3 17h18" />
+      <circle cx="14.5" cy="7" r="2.4" />
+      <circle cx="9" cy="17" r="2.4" />
     </>
   ),
   history: (
     <>
       <circle cx="12" cy="12" r="9" />
-      <path d="M12 7.5V12l3 2" />
+      <path d="M12 7.5V12l3.2 2" />
     </>
   ),
   vault: (
     <>
       <rect x="4" y="10" width="16" height="11" rx="2.5" />
-      <path d="M8 10V7.2a4 4 0 0 1 8 0V10M12 14v3" />
+      <path d="M8 10V7.2a4 4 0 0 1 8 0V10M12 14.5v3" />
     </>
   ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3.2" />
-      <path d="M12 2.5v2.8M12 18.7v2.8M4.9 4.9l2 2M17.1 17.1l2 2M2.5 12h2.8M18.7 12h2.8M4.9 19.1l2-2M17.1 6.9l2-2" />
+      <circle cx="12" cy="12" r="8.4" />
+      <path d="M12 1.6v2.4M12 20v2.4M1.6 12h2.4M20 12h2.4M4.6 4.6l1.7 1.7M17.7 17.7l1.7 1.7M4.6 19.4l1.7-1.7M17.7 6.3l1.7-1.7" />
     </>
   ),
   refresh: (
     <>
-      <path d="M20.5 12a8.5 8.5 0 1 1-2.8-6.3" />
-      <path d="M21 3.5v5.2h-5.2" />
+      <path d="M3 12a9 9 0 0 1 15.3-6.4L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15.3 6.4L3 16" />
+      <path d="M3 21v-5h5" />
     </>
   ),
   folder: (
-    <path d="M3 7.4A2 2 0 0 1 5 5.4h3.4l2 2.4H19a2 2 0 0 1 2 2v7.2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.4Z" />
+    <path d="M3 7.4A2 2 0 0 1 5 5.4h3.6l2 2.4H19a2 2 0 0 1 2 2v7.2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7.4Z" />
   ),
   alert: (
     <>
-      <path d="M12 4 2.6 20h18.8L12 4Z" />
-      <path d="M12 10v4M12 17h.01" />
+      <path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+      <path d="M12 9v4M12 16.5h.01" />
     </>
   ),
   check: <path d="m4.5 12.5 5 5L20 6.5" />,
@@ -132,34 +138,36 @@ const PATHS: Record<IconName, React.ReactNode> = {
   ),
   search: (
     <>
-      <circle cx="11" cy="11" r="6.2" />
-      <path d="m20 20-3.6-3.6" />
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20.5 20.5-4.2-4.2" />
     </>
   ),
   close: <path d="M6 6l12 12M18 6 6 18" />,
-  terminal: <path d="m5 7 4.5 5L5 17M12.5 17h7" />,
+  terminal: <path d="m5 7 4.5 5L5 17M12.5 17H19" />,
   lock: (
     <>
-      <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
-      <path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7" />
+      <rect x="3.5" y="11" width="17" height="10" rx="2.5" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
   sparkle: (
-    <path d="M12 3.5 13.6 9 19 10.6 13.6 12.2 12 17.7 10.4 12.2 5 10.6 10.4 9 12 3.5ZM18.5 16.5l.7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7.7-2.3Z" />
+    <path d="M12 4 14 9.5 19.5 11.5 14 13.5 12 19 10 13.5 4.5 11.5 10 9.5 12 4Z" />
   ),
-  play: <path d="M7.5 4.8v14.4L19.5 12 7.5 4.8Z" />,
+  play: <path d="M8 5.4v13.2L19 12 8 5.4Z" />,
   info: (
     <>
       <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5.2M12 7.8h.01" />
+      <path d="M12 16v-4.5M12 8h.01" />
     </>
   ),
-  shield: <path d="M12 3.2l7 2.8v6c0 4.8-2.9 7.6-7 8.8-4.1-1.2-7-4-7-8.8v-6l7-2.8Z" />,
+  shield: (
+    <path d="M12 3 19 5.7v6.1c0 4.7-2.9 7.5-7 8.9-4.1-1.4-7-4.2-7-8.9V5.7L12 3Z" />
+  ),
   cpu: (
     <>
       <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" />
-      <path d="M10 2.8v3.7M14 2.8v3.7M10 17.5v3.7M14 17.5v3.7M2.8 10h3.7M2.8 14h3.7M17.5 10h3.7M17.5 14h3.7" />
+      <path d="M10 2.6v3.6M14 2.6v3.6M10 17.8v3.6M14 17.8v3.6M2.6 10h3.6M2.6 14h3.6M17.8 10h3.6M17.8 14h3.6" />
     </>
   ),
   link: (
@@ -171,7 +179,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
   dot: <circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none" />,
   trash: (
     <>
-      <path d="M4 6.8h16M9.5 3.8h5M6.2 6.8l1 13.2a1.2 1.2 0 0 0 1.2 1.1h7.2a1.2 1.2 0 0 0 1.2-1.1l1-13.2" />
+      <path d="M4 6.8h16M9.5 3.8h5M6.3 6.8l.9 12.9a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l.9-12.9" />
       <path d="M10.2 10.8v6M13.8 10.8v6" />
     </>
   ),
