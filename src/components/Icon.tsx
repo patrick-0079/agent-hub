@@ -32,7 +32,8 @@ export type IconName =
   | "cpu"
   | "link"
   | "trash"
-  | "dot";
+  | "dot"
+  | "cat";
 
 /** 图标集：统一 24×24 网格 / 圆角端点 / 1.7 描边，几何规整（Lucide 风格比例） */
 const PATHS: Record<IconName, React.ReactNode> = {
@@ -177,6 +178,16 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   dot: <circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none" />,
+  cat: (
+    <>
+      <path d="M4.5 11.5v2.9c0 3.6 3.2 6.1 7.5 6.1s7.5-2.5 7.5-6.1v-2.9" />
+      <path d="M4.5 11.5 6 4l3.7 3.1M19.5 11.5 18 4l-3.7 3.1" />
+      <circle cx="9.3" cy="13.2" r="0.95" fill="currentColor" stroke="none" />
+      <circle cx="14.7" cy="13.2" r="0.95" fill="currentColor" stroke="none" />
+      <path d="M12 15.4l-0.9 1.3h1.8L12 15.4Z" fill="currentColor" stroke="none" />
+      <path d="M2.4 12.7l2.6.4M2.8 15.5l2.5-0.3M21.6 12.7l-2.6.4M21.2 15.5l-2.5-0.3" />
+    </>
+  ),
   trash: (
     <>
       <path d="M4 6.8h16M9.5 3.8h5M6.3 6.8l.9 12.9a1.4 1.4 0 0 0 1.4 1.3h6.8a1.4 1.4 0 0 0 1.4-1.3l.9-12.9" />

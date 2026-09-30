@@ -105,7 +105,7 @@ export default function App() {
   if (!ready) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-slate-400">
-        <Icon name="mcp" className="h-8 w-8 animate-pulse-soft text-brand-400" />
+        <Icon name="cat" className="h-9 w-9 animate-pulse-soft text-brand-400" />
         <p className="text-sm">正在连接 AgentHub 后端…</p>
       </div>
     );

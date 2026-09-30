@@ -77,9 +77,12 @@ export function Sidebar() {
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-ink-700 bg-ink-900">
       {/* 品牌 */}
-      <div className="border-b border-ink-700 px-4 py-4">
-        <div className="text-sm font-semibold tracking-wide text-slate-100">AgentHub</div>
-        <div className="mt-0.5 text-[11px] text-slate-500">统一 Agent 环境管理器</div>
+      <div className="flex items-center gap-2.5 border-b border-ink-700 px-4 py-4">
+        <Icon name="cat" className="h-5 w-5 shrink-0 text-brand-400" />
+        <div className="min-w-0">
+          <div className="text-sm font-semibold tracking-wide text-slate-100">AgentHub</div>
+          <div className="mt-0.5 text-[11px] text-slate-500">统一 Agent 环境管理器</div>
+        </div>
       </div>
 
       {/* 导航 */}
