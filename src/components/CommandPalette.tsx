@@ -128,7 +128,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[12vh]">
       <div className="overlay absolute inset-0" onClick={onClose} />
-      <div className="relative flex w-full max-w-xl animate-fade-in flex-col overflow-hidden rounded-md border border-ink-700 bg-ink-900">
+      <div className="relative flex w-full max-w-xl flex-col overflow-hidden rounded-md border border-ink-700 bg-ink-900">
         <div className="flex items-center gap-2 border-b border-ink-700 px-3 py-2.5">
           <Icon name="search" className="h-4 w-4 shrink-0 text-slate-500" />
           <input
@@ -167,7 +167,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                     onMouseEnter={() => setCursor(idx)}
                     onClick={() => activate(cmd)}
                     className={`flex w-full items-center gap-3 rounded-sm px-2.5 py-2 text-left ${
-                      active ? "bg-brand-900 text-brand-400" : "text-slate-300 hover:bg-ink-800"
+                      active ? "bg-ink-800 text-brand-400" : "text-slate-300 hover:bg-ink-800"
                     }`}
                   >
                     <Icon name={cmd.icon} className="h-4 w-4 shrink-0" />

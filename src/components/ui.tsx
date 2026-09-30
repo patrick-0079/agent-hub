@@ -34,7 +34,7 @@ export function SectionCard({
 }) {
   return (
     <section className={`card flex flex-col overflow-hidden ${className}`}>
-      <header className="flex items-start justify-between gap-4 border-b border-ink-700/60 px-5 py-3.5">
+      <header className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-3.5">
         <div>
           <h2 className="text-sm font-semibold text-slate-100">{title}</h2>
           {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
@@ -50,30 +50,29 @@ export function SectionCard({
 
 export type Tone = "teal" | "violet" | "amber" | "rose" | "slate" | "sky";
 
-/** 扁平色调：实底暗色 + 同系边框 + 同系文字，无阴影无发光 */
+/** 朴素色调：无底色，只有边框 + 文字色；violet/sky 归中性（分类信息不配色） */
 const TONE_CLASS: Record<Tone, string> = {
-  teal: "border-brand-800 bg-brand-900 text-brand-400",
-  violet: "border-accent-800 bg-accent-900 text-accent-400",
-  amber: "border-amber-800/70 bg-amber-950 text-amber-300",
-  rose: "border-rose-800/70 bg-rose-950 text-rose-300",
-  slate: "border-ink-700 bg-ink-800 text-slate-400",
-  sky: "border-sky-800/70 bg-sky-950 text-sky-300",
+  teal: "border-brand-800 text-brand-400",
+  violet: "border-ink-700 text-slate-400",
+  amber: "border-amber-800/70 text-amber-300",
+  rose: "border-rose-800/70 text-rose-300",
+  slate: "border-ink-700 text-slate-400",
+  sky: "border-ink-700 text-slate-400",
 };
 
 export function Badge({
   children,
   tone = "slate",
-  icon,
   className = "",
 }: {
   children: React.ReactNode;
   tone?: Tone;
+  /** 兼容旧调用：徽章一律纯文字（内嵌图标已移除，降噪） */
   icon?: IconName;
   className?: string;
 }) {
   return (
     <span className={`chip ${TONE_CLASS[tone]} ${className}`}>
-      {icon && <Icon name={icon} className="h-3 w-3" />}
       {children}
     </span>
   );
@@ -120,7 +119,7 @@ export function ProgressBar({
       )}
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-ink-800">
         {indeterminate ? (
-          <div className="h-full w-1/3 animate-sweep rounded-full bg-brand-500" />
+          <div className="h-full w-1/3 animate-pulse-soft rounded-full bg-brand-500" />
         ) : (
           <div
             className={`h-full rounded-full transition-[width] duration-300 ${barColor}`}
@@ -139,7 +138,6 @@ export function Kpi({
   value,
   unit,
   hint,
-  icon,
   tone = "teal",
   onClick,
 }: {
@@ -147,7 +145,7 @@ export function Kpi({
   value: React.ReactNode;
   unit?: string;
   hint?: string;
-  icon: IconName;
+  icon?: IconName;
   tone?: Tone;
   onClick?: () => void;
 }) {
@@ -156,18 +154,19 @@ export function Kpi({
       type="button"
       onClick={onClick}
       disabled={!onClick}
-      className={`card group flex items-start gap-3.5 p-4 text-left transition-colors ${
+      className={`card group flex items-start gap-3 p-4 text-left transition-colors ${
         onClick ? "hover:border-ink-600 hover:bg-ink-800" : "cursor-default"
       }`}
     >
-      <span className={`mt-0.5 rounded-md border p-2 ${TONE_CLASS[tone]}`}>
-        <Icon name={icon} className="h-4 w-4" />
-      </span>
       <span className="min-w-0">
         <span className="block text-[11px] font-medium uppercase tracking-wide text-slate-500">
           {label}
         </span>
-        <span className="mt-0.5 block text-2xl font-semibold leading-tight text-slate-50">
+        <span
+          className={`mt-0.5 block text-2xl font-semibold leading-tight ${
+            tone === "rose" || tone === "amber" ? "text-slate-100" : "text-slate-100"
+          }`}
+        >
           {value}
           {unit && <span className="ml-1 text-xs font-normal text-slate-500">{unit}</span>}
         </span>
@@ -192,9 +191,7 @@ export function Empty({
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-      <span className="rounded-md border border-ink-700 bg-ink-800 p-3 text-slate-500">
-        <Icon name={icon} className="h-5 w-5" />
-      </span>
+      <Icon name={icon} className="h-5 w-5 text-slate-600" />
       <p className="text-sm font-medium text-slate-300">{title}</p>
       {description && <p className="max-w-md text-xs leading-relaxed text-slate-500">{description}</p>}
       {action}
@@ -297,7 +294,7 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
       <div className="overlay absolute inset-0" onClick={onClose} />
       <div
-        className={`relative flex max-h-[88vh] w-full ${width} animate-fade-in flex-col overflow-hidden rounded-md border border-ink-700 bg-ink-900`}
+        className={`relative flex max-h-[88vh] w-full ${width} flex-col overflow-hidden rounded-md border border-ink-700 bg-ink-900`}
       >
         <header className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
           <div className="min-w-0">
@@ -345,7 +342,7 @@ export function Drawer({
     <div className="fixed inset-0 z-40 flex justify-end">
       <div className="overlay absolute inset-0" onClick={onClose} />
       <div
-        className={`relative flex h-full w-full ${width} animate-fade-in flex-col border-l border-ink-700 bg-ink-900`}
+        className={`relative flex h-full w-full ${width} flex-col border-l border-ink-700 bg-ink-900`}
       >
         <header className="flex items-start justify-between gap-4 border-b border-ink-700 px-5 py-4">
           <div className="min-w-0">
@@ -485,7 +482,7 @@ export function PlannedPage({
     <div className="mx-auto max-w-4xl space-y-4">
       <Card className="border-dashed">
         <div className="flex items-start gap-4">
-          <span className="rounded-md border border-accent-800 bg-accent-900 p-3 text-accent-400">
+          <span className="text-accent-400">
             <Icon name={icon} className="h-5 w-5" />
           </span>
           <div>
@@ -502,9 +499,9 @@ export function PlannedPage({
 
       <div className="grid gap-3 sm:grid-cols-2">
         {bullets.map((b) => (
-          <Card key={b.title} className="border-ink-700/60">
+          <Card key={b.title} className="border-ink-700">
             <div className="flex items-start gap-3">
-              <span className="mt-0.5 rounded-md border border-ink-600 bg-ink-800 p-1.5 text-slate-400">
+              <span className="mt-0.5 text-slate-500">
                 <Icon name="check" className="h-3.5 w-3.5" />
               </span>
               <div>

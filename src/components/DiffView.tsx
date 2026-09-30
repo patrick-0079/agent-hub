@@ -43,7 +43,7 @@ export function DiffView({
                   : "text-slate-400";
           return (
             <div key={index} className={`flex ${cls}`}>
-              <span className="w-10 shrink-0 select-none border-r border-ink-800/60 px-2 text-right font-mono text-[10px] text-slate-600">
+              <span className="w-10 shrink-0 select-none border-r border-ink-800 px-2 text-right font-mono text-[10px] text-slate-600">
                 {index + 1}
               </span>
               <span className="min-w-0 flex-1 whitespace-pre-wrap break-all px-3">

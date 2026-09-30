@@ -169,7 +169,7 @@ function CreateEnvDialog({
         {result && (
           <div
             className={`rounded-md border p-3 ${
-              result.ok ? "border-brand-800 bg-brand-900" : "border-rose-800/70 bg-rose-950"
+              result.ok ? "border-brand-800" : "border-rose-800/70"
             }`}
           >
             <div className="flex items-center gap-2 text-xs">
@@ -334,7 +334,7 @@ export function PythonPage() {
                   return (
                     <div
                       key={env.id}
-                      className="rounded-md border border-ink-800/70 bg-ink-900 px-3.5 py-3"
+                      className="rounded-md border border-ink-800 bg-ink-900 px-3.5 py-3"
                     >
                       <div className="flex items-center gap-2">
                         <span className="truncate text-sm font-medium text-slate-100">{env.name}</span>

@@ -184,7 +184,7 @@ function ProfileEditor({
         </div>
 
         {/* Agent 绑定 */}
-        <Card className="border-ink-700/60">
+        <Card className="border-ink-700">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-slate-200">绑定 Agent</span>
             <span className="text-[11px] text-slate-500">
@@ -200,7 +200,7 @@ function ProfileEditor({
                 onClick={() => toggle(agent.id, agents, setAgents)}
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11.5px] transition-colors ${
                   agents.includes(agent.id)
-                    ? "border-brand-500/50 bg-brand-900 text-brand-300"
+                    ? "border-brand-500/50 text-brand-300"
                     : "border-ink-700 bg-ink-900 text-slate-400 hover:bg-ink-800"
                 }`}
               >
@@ -511,9 +511,9 @@ export function ProfilesPage() {
         ) : (
           <div className="grid gap-3 xl:grid-cols-2">
             {profiles.map((profile) => (
-              <Card key={profile.id} className="border-ink-700/60">
+              <Card key={profile.id} className="border-ink-700">
                 <div className="flex items-start gap-3">
-                  <span className="rounded-lg border border-accent-500/40 bg-accent-900 p-2 text-accent-400">
+                  <span className="text-accent-400">
                     <Icon name="profiles" className="h-4 w-4" />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -551,7 +551,7 @@ export function ProfilesPage() {
                   </div>
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-800/70 pt-3">
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-800 pt-3">
                   <button
                     type="button"
                     className="btn-primary btn-sm"
@@ -640,7 +640,7 @@ export function ProfilesPage() {
       {lastExport && (
         <Card className="border-brand-500/30">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-md border border-brand-800 bg-brand-900 p-2 text-brand-400">
+            <span className="text-brand-400">
               <Icon name="external" className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">

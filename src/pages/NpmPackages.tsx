@@ -141,7 +141,7 @@ function InstallDialog({
         {result && (
           <div
             className={`rounded-md border p-3 ${
-              result.ok ? "border-brand-800 bg-brand-900" : "border-rose-800/70 bg-rose-950"
+              result.ok ? "border-brand-800" : "border-rose-800/70"
             }`}
           >
             <div className="flex items-center gap-2 text-xs">
@@ -256,7 +256,7 @@ function RemoveDialog({
           </div>
         )}
         {plan && (
-          <div className="rounded-md border border-rose-800/60 bg-rose-950 p-3">
+          <div className="rounded-md border border-rose-800/60 p-3">
             <pre className="mono whitespace-pre-wrap break-all text-[10.5px] text-slate-300">
               {plan.managerPath} {plan.args.join(" ")}
             </pre>
@@ -264,7 +264,7 @@ function RemoveDialog({
           </div>
         )}
         {result && (
-          <div className={`rounded-md border p-3 ${result.ok ? "border-brand-800 bg-brand-900" : "border-rose-800/70 bg-rose-950"}`}>
+          <div className={`rounded-md border p-3 ${result.ok ? "border-brand-800" : "border-rose-800/70"}`}>
             <div className="flex items-center gap-2 text-xs">
               <StatusDot state={result.ok ? "ok" : "error"} />
               <span className={result.ok ? "text-brand-400" : "text-rose-300"}>
@@ -430,7 +430,7 @@ export function NpmPage() {
             }
           />
         ) : (
-          <div className="overflow-hidden rounded-md border border-ink-800/70">
+          <div className="overflow-hidden rounded-md border border-ink-800">
             <table className="w-full border-collapse">
               <thead>
                 <tr>

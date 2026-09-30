@@ -68,9 +68,9 @@ function AgentCard({ agent, reveal }: { agent: AgentTarget; reveal: (p: string) 
   const hidden = agent.evidence.length - evidence.length;
 
   return (
-    <Card className="border-ink-700/60" padded={false}>
+    <Card className="border-ink-700" padded={false}>
       {/* 头部 */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-ink-800/70 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3 border-b border-ink-800 px-4 py-3">
         <span className="h-8 w-1.5 shrink-0 rounded" style={{ background: agent.accent }} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -103,7 +103,7 @@ function AgentCard({ agent, reveal }: { agent: AgentTarget; reveal: (p: string) 
 
       {/* 强信号速览 */}
       {(agent.cli || agent.npmPackage) && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-ink-800/70 px-4 py-2 text-[11px]">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-ink-800 px-4 py-2 text-[11px]">
           {agent.cli && (
             <span className="flex min-w-0 items-center gap-1.5">
               <Icon name="terminal" className="h-3 w-3 shrink-0 text-brand-400" />
@@ -155,11 +155,11 @@ function AgentCard({ agent, reveal }: { agent: AgentTarget; reveal: (p: string) 
 
       {/* 配置位置（仅在有痕迹时展示） */}
       {agent.status !== "absent" && (
-        <div className="border-t border-ink-800/70 px-4 py-2">
+        <div className="border-t border-ink-800 px-4 py-2">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
             配置与数据位置
           </div>
-          <div className="divide-y divide-ink-800/60">
+          <div className="divide-y divide-ink-800">
             {agent.configs.map((config) => (
               <PathRow
                 key={`${agent.id}-${config.path}`}
@@ -175,7 +175,7 @@ function AgentCard({ agent, reveal }: { agent: AgentTarget; reveal: (p: string) 
       )}
 
       {agent.notes.length > 0 && (
-        <div className="flex flex-col gap-1 border-t border-ink-800/70 px-4 py-2.5">
+        <div className="flex flex-col gap-1 border-t border-ink-800 px-4 py-2.5">
           {agent.notes.map((note) => (
             <span key={note} className="flex items-start gap-1.5 text-[11px] text-slate-500">
               <Icon name="info" className="mt-0.5 h-3 w-3 shrink-0" />
@@ -193,7 +193,7 @@ function EvidenceRow({ item }: { item: AgentEvidence }) {
   return (
     <div
       className={`flex items-center gap-2.5 rounded-md border px-2.5 py-1.5 ${
-        item.found ? "border-ink-800 bg-ink-900" : "border-ink-800/50 bg-ink-950"
+        item.found ? "border-ink-800 bg-ink-900" : "border-ink-800 bg-ink-950"
       }`}
     >
       <Icon

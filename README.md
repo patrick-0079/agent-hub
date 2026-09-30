@@ -279,7 +279,7 @@ configWrite = ["merge-keys"]
 
 - **后端**：Rust + Tauri 2、`rusqlite`（bundled SQLite）、`toml`、`ureq`（连通性测试 / HTTP 握手）、自实现进程探测（超时保护 + 隐藏控制台窗口）
 - **前端**：React 18 + TypeScript + Vite 6 + Tailwind 3 + Zustand
-- **界面**：全面**扁平化朴素风格** —— 中性灰底、单一青色强调、无渐变无发光无毛玻璃、实底色 + 1px 边框 + 收敛圆角；**深浅双主题**（全部颜色经 CSS 变量映射，`html.light` 一键切换，设置页即时生效）
+- **界面**：全面**扁平化朴素风格** —— 中性灰底、单一青色强调、无渐变无发光无毛玻璃、实底色 + 1px 边框 + 收敛圆角；**深浅双主题**（全部颜色经 CSS 变量映射，`html.light` 一键切换）；**降噪规范**：徽章/图标一律纯线框无底色，彩色只保留语义（状态/主操作/diff 行），无装饰动画
 - **可视化**：拓扑图为手写 SVG（零依赖）；diff 视图将用 Monaco（M2）；图表将用 Recharts（M5）
 - **CI**：GitHub Actions（windows-latest）：`pnpm build` + `cargo build` + `--self-test` 143 项断言
 

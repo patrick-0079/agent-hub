@@ -45,7 +45,7 @@ export function PlanView({ plan }: { plan: ActionPlan }) {
           {plan.warnings.map((w, i) => (
             <div
               key={i}
-              className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-950 px-3 py-2 text-xs leading-relaxed text-amber-200"
+              className="flex items-start gap-2 rounded-lg border border-amber-500/25 px-3 py-2 text-xs leading-relaxed text-amber-200"
             >
               <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               {w}
@@ -96,8 +96,8 @@ export function ResultView({
       <div
         className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm ${
           result.ok
-            ? "border-brand-500/30 bg-brand-900 text-brand-400"
-            : "border-rose-500/30 bg-rose-950 text-rose-300"
+            ? "border-brand-500/30 text-brand-400"
+            : "border-rose-500/30 text-rose-300"
         }`}
       >
         <Icon name={result.ok ? "check" : "alert"} className="h-4 w-4" />
@@ -107,7 +107,7 @@ export function ResultView({
       {result.warnings.map((w, i) => (
         <div
           key={i}
-          className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-950 px-3 py-2 text-xs text-amber-200"
+          className="flex items-start gap-2 rounded-lg border border-amber-500/25 px-3 py-2 text-xs text-amber-200"
         >
           <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           {w}
@@ -448,7 +448,7 @@ export function ImportDialog({
 
           {/* 发现结果 */}
           {discovered && (
-            <Card className="border-ink-700/60">
+            <Card className="border-ink-700">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium text-slate-200">
                   发现 {discovered.length} 个 Skill
@@ -662,7 +662,7 @@ export function CleanupDialog({
       ) : (
         <div className="space-y-4">
           {showRelink && (
-            <Card className="border-ink-700/60">
+            <Card className="border-ink-700">
               <div className="text-xs text-slate-400">
                 选择要把这些链接重新指向哪个技能库（库中不存在的会被跳过）
               </div>
@@ -776,7 +776,7 @@ export function DeleteDialog({
       {result ? (
         <ResultView result={result} onReveal={onReveal} />
       ) : error ? (
-        <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-950 px-3 py-2.5 text-xs text-rose-200">
+        <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 px-3 py-2.5 text-xs text-rose-200">
           <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="leading-relaxed">{error}</span>
         </div>
@@ -857,7 +857,7 @@ export function ActionDialog({
       {result ? (
         <ResultView result={result} onReveal={onReveal} />
       ) : error ? (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-950 px-3 py-2.5 text-xs text-amber-200">
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 px-3 py-2.5 text-xs text-amber-200">
           <Icon name="info" className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="leading-relaxed">{error}</span>
         </div>
@@ -902,7 +902,7 @@ export function BrokenSummary({ broken }: { broken: BrokenRef[] }) {
   return (
     <div className="space-y-2">
       {groups.map(([target, items]) => (
-        <div key={target} className="rounded-lg border border-rose-500/25 bg-rose-950 px-3 py-2">
+        <div key={target} className="rounded-lg border border-rose-500/25 px-3 py-2">
           <div className="flex items-center gap-2 text-xs">
             <Icon name="alert" className="h-3.5 w-3.5 shrink-0 text-rose-300" />
             <span className="text-rose-200">{items.length} 个链接指向缺失目录</span>

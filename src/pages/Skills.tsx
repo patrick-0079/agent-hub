@@ -137,9 +137,9 @@ export function SkillsPage() {
     <div className="space-y-4">
       {/* 失效链接汇总条 */}
       {broken.length > 0 && (
-        <Card className="border-rose-500/30 bg-rose-950">
+        <Card className="border-rose-500/30">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-lg border border-rose-500/40 bg-rose-950 p-2 text-rose-300">
+            <span className="text-rose-300">
               <Icon name="alert" className="h-4 w-4" />
             </span>
             <div className="min-w-0 flex-1">
@@ -256,7 +256,7 @@ export function SkillsPage() {
                 onClick={() => void open(skill)}
                 className={`card group flex flex-col gap-2 p-4 text-left transition-colors ${
                   skill.broken
-                    ? "border-rose-500/40 bg-rose-950 hover:border-rose-500/60"
+                    ? "border-rose-500/40 hover:border-rose-500/60"
                     : "hover:border-brand-500/40 hover:bg-ink-800"
                 }`}
               >
@@ -264,8 +264,8 @@ export function SkillsPage() {
                   <span
                     className={`mt-0.5 rounded-md border p-1.5 ${
                       skill.broken
-                        ? "border-rose-500/40 bg-rose-950 text-rose-300"
-                        : "border-brand-500/30 bg-brand-900 text-brand-400"
+                        ? "border-rose-500/40 text-rose-300"
+                        : "border-brand-500/30 text-brand-400"
                     }`}
                   >
                     <Icon name={skill.broken ? "alert" : "skills"} className="h-3.5 w-3.5" />
@@ -367,7 +367,7 @@ export function SkillsPage() {
 
             {selected.linkTarget && (
               <Card
-                className={selected.broken ? "border-rose-500/40 bg-rose-950" : "border-ink-700/60"}
+                className={selected.broken ? "border-rose-500/40" : "border-ink-700"}
               >
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                   链接目标
@@ -403,7 +403,7 @@ export function SkillsPage() {
             )}
 
             {selected.broken && (
-              <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-950 px-3 py-2.5 text-xs text-rose-200">
+              <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 px-3 py-2.5 text-xs text-rose-200">
                 <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
                 <span className="leading-relaxed">
                   这是链接指向失效，不是 Skill 本身的问题 —— 内容无处可读，故下方不显示预览。
@@ -412,7 +412,7 @@ export function SkillsPage() {
             )}
 
             {selected.whenToUse && (
-              <Card className="border-ink-700/60">
+              <Card className="border-ink-700">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                   何时使用
                 </div>

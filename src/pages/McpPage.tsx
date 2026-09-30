@@ -698,12 +698,12 @@ export function McpPage() {
                   key={res.id}
                   className={`rounded-lg border px-3.5 py-3 transition-colors ${
                     res.enabled
-                      ? "border-ink-800/70 bg-ink-900"
-                      : "border-ink-800/50 bg-ink-950 opacity-70"
+                      ? "border-ink-800 bg-ink-900"
+                      : "border-ink-800 bg-ink-950 opacity-70"
                   }`}
                 >
                   <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="rounded-md border border-sky-500/30 bg-sky-950 p-1.5 text-sky-300">
+                    <span className="text-sky-300">
                       <Icon name="mcp" className="h-3.5 w-3.5" />
                     </span>
                     <span className="min-w-0 flex-1">
@@ -841,9 +841,9 @@ export function McpPage() {
                 {filteredServers.map((server) => {
                   const isOpen = expanded === server.id;
                   return (
-                    <div key={server.id} className="rounded-lg border border-ink-800/70 bg-ink-900">
+                    <div key={server.id} className="rounded-lg border border-ink-800 bg-ink-900">
                       <div className="flex items-center gap-3 px-3.5 py-3">
-                        <span className="rounded-md border border-sky-500/30 bg-sky-950 p-1.5 text-sky-300">
+                        <span className="text-sky-300">
                           <Icon name="mcp" className="h-3.5 w-3.5" />
                         </span>
                         <div className="min-w-0 flex-1">
@@ -1083,13 +1083,13 @@ export function McpPage() {
       >
         <div className="space-y-1.5">
           {importError && (
-            <div className="mb-2 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-950 px-3 py-2.5 text-xs text-rose-200">
+            <div className="mb-2 flex items-start gap-2 rounded-lg border border-rose-500/40 px-3 py-2.5 text-xs text-rose-200">
               <Icon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="leading-relaxed">导入失败：{importError}</span>
             </div>
           )}
           {importSummary && (
-            <div className="mb-2 flex items-start gap-2 rounded-lg border border-brand-500/40 bg-brand-900 px-3 py-2.5 text-xs text-brand-300">
+            <div className="mb-2 flex items-start gap-2 rounded-lg border border-brand-500/40 px-3 py-2.5 text-xs text-brand-300">
               <Icon name="check" className="mt-0.5 h-4 w-4 shrink-0" />
               <span className="leading-relaxed">{importSummary}</span>
             </div>

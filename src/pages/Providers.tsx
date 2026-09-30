@@ -516,8 +516,8 @@ export function ProvidersPage() {
             <span
               className={`rounded-lg border p-2 ${
                 vault.healthy
-                  ? "border-brand-500/40 bg-brand-900 text-brand-400"
-                  : "border-rose-500/40 bg-rose-950 text-rose-300"
+                  ? "border-brand-500/40 text-brand-400"
+                  : "border-rose-500/40 text-rose-300"
               }`}
             >
               <Icon name="vault" className="h-4 w-4" />
@@ -655,12 +655,12 @@ export function ProvidersPage() {
                   key={item.id}
                   className={`rounded-lg border px-3.5 py-3 ${
                     item.enabled
-                      ? "border-ink-800/70 bg-ink-900"
-                      : "border-ink-800/50 bg-ink-950 opacity-70"
+                      ? "border-ink-800 bg-ink-900"
+                      : "border-ink-800 bg-ink-950 opacity-70"
                   }`}
                 >
                   <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="rounded-md border border-brand-500/30 bg-brand-900 p-1.5 text-brand-400">
+                    <span className="text-brand-400">
                       <Icon name="providers" className="h-3.5 w-3.5" />
                     </span>
                     <span className="min-w-0 flex-1">
@@ -781,7 +781,7 @@ export function ProvidersPage() {
             }
           />
         ) : (
-          <div className="overflow-hidden rounded-lg border border-ink-800/70">
+          <div className="overflow-hidden rounded-lg border border-ink-800">
             <table className="w-full border-collapse">
               <thead>
                 <tr>

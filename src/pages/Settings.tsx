@@ -164,7 +164,7 @@ export function Settings() {
                 return (
                   <div
                     key={item.name}
-                    className="rounded-lg border border-ink-800/70 bg-ink-900 px-3 py-2.5"
+                    className="rounded-lg border border-ink-800 bg-ink-900 px-3 py-2.5"
                   >
                     <div className="flex items-center gap-3">
                       <StatusDot state={item.found ? "ok" : "idle"} />
@@ -618,7 +618,7 @@ function MigrationCard() {
       </div>
 
       {lastExport && (
-        <div className="rounded-md border border-brand-800 bg-brand-900 px-3 py-2.5">
+        <div className="rounded-md border border-brand-800 px-3 py-2.5">
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <Icon name="check" className="h-4 w-4 text-brand-400" />
             <span className="text-brand-400">

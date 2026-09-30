@@ -141,7 +141,7 @@ function TreeNode({
             {node.hasMcpShape && (
               <button
                 type="button"
-                className={`btn btn-sm border ${isMcp ? "border-sky-500 bg-sky-950 text-sky-300" : "border-sky-500/40 text-sky-300 hover:bg-sky-950"}`}
+                className={`btn btn-sm border ${isMcp ? "border-sky-500 text-sky-300" : "border-sky-500/40 text-sky-300 hover:bg-sky-950"}`}
                 onClick={() => onPickMcp(isMcp ? "" : nodePath)}
                 title="选作 MCP 配置来源（生成 [[mcp]] 声明）"
               >
@@ -150,7 +150,7 @@ function TreeNode({
             )}
             <button
               type="button"
-              className={`btn btn-sm border ${isProvider ? "border-teal-500 bg-teal-900 text-teal-300" : "border-teal-500/40 text-teal-300 hover:bg-teal-900"}`}
+              className={`btn btn-sm border ${isProvider ? "border-teal-500 text-teal-300" : "border-teal-500/40 text-teal-300 hover:bg-teal-900"}`}
               onClick={() => onPickProvider(isProvider ? "" : nodePath)}
               title="选作供应商线索来源（生成 [[provider]] 声明）"
             >
@@ -331,7 +331,7 @@ function ReverseWizard({
         </div>
 
         {treeError && (
-          <div className="rounded-md border border-rose-800/70 bg-rose-950 px-3 py-2 text-xs text-rose-300">
+          <div className="rounded-md border border-rose-800/70 px-3 py-2 text-xs text-rose-300">
             {treeError}
           </div>
         )}
@@ -493,7 +493,7 @@ function TemplatePlayground({ open, onClose }: { open: boolean; onClose: () => v
               className={`max-h-52 overflow-auto rounded-md border p-3 font-mono text-[11px] leading-relaxed ${
                 result.ok
                   ? "border-ink-800 bg-ink-950 text-slate-300"
-                  : "border-rose-800/70 bg-rose-950 text-rose-200"
+                  : "border-rose-800/70 text-rose-200"
               }`}
             >
               {result.ok ? result.output : result.error}
@@ -670,12 +670,12 @@ export function AgentDefsPage() {
               <div className="flex items-center gap-2">
                 <span className={`rounded-lg border p-1.5 ${
                   meta.tone === "teal"
-                    ? "border-brand-500/40 bg-brand-900 text-brand-400"
+                    ? "border-brand-500/40 text-brand-400"
                     : meta.tone === "sky"
-                      ? "border-sky-500/40 bg-sky-950 text-sky-300"
+                      ? "border-sky-500/40 text-sky-300"
                       : meta.tone === "violet"
-                        ? "border-accent-500/40 bg-accent-900 text-accent-400"
-                        : "border-rose-500/40 bg-rose-950 text-rose-300"
+                        ? "border-accent-500/40 text-accent-400"
+                        : "border-rose-500/40 text-rose-300"
                 }`}>
                   <Icon name={meta.icon} className="h-4 w-4" />
                 </span>
@@ -847,7 +847,7 @@ export function AgentDefsPage() {
             {view.warnings.map((w, i) => (
               <div
                 key={i}
-                className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-950 px-3 py-2 text-xs text-amber-200"
+                className="flex items-start gap-2 rounded-lg border border-amber-500/25 px-3 py-2 text-xs text-amber-200"
               >
                 <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 {w}
@@ -1042,7 +1042,7 @@ function DefinitionCard({
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-ink-800/70 pt-2">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-ink-800 pt-2">
         <span className="text-[10.5px] text-slate-600">能力上限</span>
         {TIER_ORDER.filter(
           (t) => TIER_ORDER.indexOf(t) <= TIER_ORDER.indexOf(policy.maxTier),
@@ -1152,7 +1152,7 @@ function DefinitionDetails({ def }: { def: LoadedDef }) {
       {(def.file.mcp.length > 0 || def.file.provider.length > 0) && (
         <div className="grid gap-3 sm:grid-cols-2">
           {def.file.mcp.length > 0 && (
-            <Card className="border-ink-700/60">
+            <Card className="border-ink-700">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 MCP 来源
               </div>
@@ -1169,7 +1169,7 @@ function DefinitionDetails({ def }: { def: LoadedDef }) {
             </Card>
           )}
           {def.file.provider.length > 0 && (
-            <Card className="border-ink-700/60">
+            <Card className="border-ink-700">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 供应商来源
               </div>
@@ -1196,7 +1196,7 @@ function DefinitionDetails({ def }: { def: LoadedDef }) {
       )}
 
       {/* 能力授权 */}
-      <Card className="border-ink-700/60">
+      <Card className="border-ink-700">
         <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
           能力分级授权
         </div>

@@ -78,23 +78,13 @@ export default {
         mono: ["Cascadia Code", "Consolas", "ui-monospace", "monospace"],
       },
       keyframes: {
-        "fade-in": {
-          "0%": { opacity: "0", transform: "translateY(4px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
-        },
         "pulse-soft": {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.45" },
         },
-        sweep: {
-          "0%": { transform: "translateX(-100%)" },
-          "100%": { transform: "translateX(300%)" },
-        },
       },
       animation: {
-        "fade-in": "fade-in 0.18s ease-out",
         "pulse-soft": "pulse-soft 1.6s ease-in-out infinite",
-        sweep: "sweep 1.4s linear infinite",
       },
     },
   },

@@ -269,7 +269,7 @@ export function Topology({ snapshot, onNavigate }: Props) {
           Profile 层（规划中）
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full border border-brand-500/70 bg-brand-900" />
+          <span className="h-2 w-2 rounded-full border border-brand-500/70" />
           点击任意节点可跳转到对应功能页
         </span>
       </div>

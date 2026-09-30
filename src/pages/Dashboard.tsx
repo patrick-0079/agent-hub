@@ -79,7 +79,7 @@ function ProviderHealthCard({ onNavigate }: { onNavigate: () => void }) {
           key={p.id}
           type="button"
           onClick={onNavigate}
-          className="flex w-full items-center gap-3 rounded-md border border-ink-800/60 bg-ink-900 px-3 py-2 text-left hover:border-ink-600"
+          className="flex w-full items-center gap-3 rounded-md border border-ink-800 bg-ink-900 px-3 py-2 text-left hover:border-ink-600"
         >
           <StatusDot state={dot(p.health.status)} />
           <span className="w-28 shrink-0 truncate text-sm text-slate-200">{p.name}</span>
@@ -258,7 +258,7 @@ export function Dashboard() {
                 {items.map((item) => (
                   <div
                     key={item.name}
-                    className="flex items-center gap-3 rounded-lg border border-ink-800/60 bg-ink-900 px-3 py-2"
+                    className="flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-900 px-3 py-2"
                   >
                     <StatusDot state={item.found ? "ok" : "idle"} />
                     <span className="w-24 shrink-0 text-sm text-slate-300">{item.displayName}</span>
@@ -288,7 +288,7 @@ export function Dashboard() {
             bodyClassName="space-y-2"
           >
             {snapshot.warnings.length === 0 ? (
-              <div className="flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-900 px-3 py-2.5 text-xs text-brand-400">
+              <div className="flex items-center gap-2 rounded-lg border border-brand-500/30 px-3 py-2.5 text-xs text-brand-400">
                 <Icon name="check" className="h-4 w-4" />
                 本次扫描未发现异常
               </div>
@@ -296,7 +296,7 @@ export function Dashboard() {
               snapshot.warnings.map((w, i) => (
                 <div
                   key={i}
-                  className="flex items-start gap-2.5 rounded-lg border border-amber-500/25 bg-amber-950 px-3 py-2 text-xs text-amber-200"
+                  className="flex items-start gap-2.5 rounded-lg border border-amber-500/25 px-3 py-2 text-xs text-amber-200"
                 >
                   <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span className="leading-relaxed">{w}</span>
@@ -333,7 +333,7 @@ export function Dashboard() {
             {installedAgents.slice(0, 5).map((agent) => (
               <div
                 key={agent.id}
-                className="flex items-center gap-3 rounded-lg border border-ink-800/60 bg-ink-900 px-3 py-2.5"
+                className="flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-900 px-3 py-2.5"
               >
                 <span className="h-7 w-1 rounded" style={{ background: agent.accent }} />
                 <div className="min-w-0 flex-1">

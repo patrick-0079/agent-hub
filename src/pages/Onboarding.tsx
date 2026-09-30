@@ -63,9 +63,9 @@ export function Onboarding() {
   return (
     <div className="flex h-full flex-col bg-ink-950">
       {/* 顶部步骤条 */}
-      <header className="flex shrink-0 items-center gap-4 border-b border-ink-700/70 px-8 py-4">
+      <header className="flex shrink-0 items-center gap-4 border-b border-ink-700 px-8 py-4">
         <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-md border border-brand-500/40 bg-brand-900 text-brand-400">
+          <span className="grid h-9 w-9 place-items-center rounded-md border border-brand-500/40 text-brand-400">
             <Icon name="mcp" className="h-5 w-5" />
           </span>
           <div>
@@ -81,7 +81,7 @@ export function Onboarding() {
                 <span
                   className={`grid h-6 w-6 place-items-center rounded-full border text-[11px] font-semibold ${
                     i < step
-                      ? "border-brand-500 bg-brand-900 text-brand-400"
+                      ? "border-brand-500 text-brand-400"
                       : i === step
                         ? "border-brand-500 bg-brand-500 text-ink-950 on-accent"
                         : "border-ink-600 text-slate-500"
@@ -104,7 +104,7 @@ export function Onboarding() {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-8 py-8">
-        <div className="mx-auto max-w-5xl animate-fade-in">
+        <div className="mx-auto max-w-5xl">
           {/* 步骤 0：欢迎 */}
           {step === 0 && (
             <div className="space-y-6">
@@ -123,9 +123,9 @@ export function Onboarding() {
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {CAPABILITIES.map((c) => (
-                  <Card key={c.title} className="border-ink-700/60">
+                  <Card key={c.title} className="border-ink-700">
                     <div className="flex items-start gap-3">
-                      <span className="rounded-lg border border-brand-500/30 bg-brand-900 p-2 text-brand-400">
+                      <span className="text-brand-400">
                         <Icon name={c.icon} className="h-4 w-4" />
                       </span>
                       <div>
@@ -172,9 +172,9 @@ export function Onboarding() {
                         key={phase}
                         className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${
                           done
-                            ? "border-brand-500/30 bg-brand-900 text-brand-400"
+                            ? "border-brand-500/30 text-brand-400"
                             : active
-                              ? "border-accent-500/40 bg-accent-900 text-accent-400"
+                              ? "border-accent-500/40 text-accent-400"
                               : "border-ink-800 bg-ink-900 text-slate-600"
                         }`}
                       >
@@ -193,7 +193,7 @@ export function Onboarding() {
               </Card>
 
               <Card padded={false} className="overflow-hidden">
-                <div className="border-b border-ink-700/60 px-4 py-2 text-xs text-slate-400">
+                <div className="border-b border-ink-700 px-4 py-2 text-xs text-slate-400">
                   扫描日志
                 </div>
                 <div className="max-h-48 overflow-y-auto px-4 py-3 font-mono text-[11px] leading-relaxed">
@@ -273,7 +273,7 @@ export function Onboarding() {
                     {installed.map((agent) => (
                       <div
                         key={agent.id}
-                        className="flex items-center gap-3 rounded-lg border border-ink-800/60 bg-ink-900 px-3 py-2"
+                        className="flex items-center gap-3 rounded-lg border border-ink-800 bg-ink-900 px-3 py-2"
                       >
                         <span className="h-6 w-1 rounded" style={{ background: agent.accent }} />
                         <span className="flex-1 truncate text-sm text-slate-200">{agent.name}</span>
@@ -292,7 +292,7 @@ export function Onboarding() {
                   <h3 className="text-sm font-semibold text-slate-100">值得关注</h3>
                   <div className="mt-3 space-y-2 text-xs">
                     {snapshot.warnings.length === 0 ? (
-                      <div className="flex items-center gap-2 rounded-lg border border-brand-500/30 bg-brand-900 px-3 py-2 text-brand-400">
+                      <div className="flex items-center gap-2 rounded-lg border border-brand-500/30 px-3 py-2 text-brand-400">
                         <Icon name="check" className="h-3.5 w-3.5" />
                         未发现异常
                       </div>
@@ -300,7 +300,7 @@ export function Onboarding() {
                       snapshot.warnings.slice(0, 4).map((w, i) => (
                         <div
                           key={i}
-                          className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-950 px-3 py-2 text-amber-200"
+                          className="flex items-start gap-2 rounded-lg border border-amber-500/25 px-3 py-2 text-amber-200"
                         >
                           <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                           <span className="leading-relaxed">{w}</span>
@@ -366,13 +366,13 @@ export function Onboarding() {
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-violet-400">
                       Profile
                     </div>
-                    <div className="rounded-md border border-dashed border-accent-500/50 bg-accent-900 p-3">
+                    <div className="rounded-md border border-dashed border-accent-500/50 p-3">
                       <div className="text-sm font-medium text-slate-200">日常开发</div>
                       <div className="mt-1 text-[11px] text-slate-500">
                         OpenRouter · filesystem + context7 · py312-ai
                       </div>
                     </div>
-                    <div className="rounded-md border border-dashed border-accent-500/30 bg-accent-900 p-3">
+                    <div className="rounded-md border border-dashed border-accent-500/30 p-3">
                       <div className="text-sm font-medium text-slate-200">轻量问答</div>
                       <div className="mt-1 text-[11px] text-slate-500">Ollama(本地) · fetch</div>
                     </div>
@@ -427,7 +427,7 @@ export function Onboarding() {
           {/* 步骤 4：完成 */}
           {step === 4 && (
             <div className="space-y-5 text-center">
-              <span className="mx-auto grid h-14 w-14 place-items-center rounded-md border border-brand-500/40 bg-brand-900 text-brand-400">
+              <span className="mx-auto grid h-14 w-14 place-items-center rounded-md border border-brand-500/40 text-brand-400">
                 <Icon name="check" className="h-7 w-7" strokeWidth={2.4} />
               </span>
               <h1 className="text-2xl font-semibold text-slate-50">准备就绪</h1>

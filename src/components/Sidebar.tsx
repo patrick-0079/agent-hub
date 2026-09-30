@@ -77,14 +77,9 @@ export function Sidebar() {
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-ink-700 bg-ink-900">
       {/* 品牌 */}
-      <div className="flex items-center gap-3 border-b border-ink-700 px-4 py-4">
-        <span className="grid h-9 w-9 place-items-center rounded-md border border-brand-800 bg-brand-900 text-brand-400">
-          <Icon name="mcp" className="h-5 w-5" />
-        </span>
-        <div>
-          <div className="text-sm font-semibold tracking-wide text-slate-100">AgentHub</div>
-          <div className="text-[11px] text-slate-500">统一 Agent 环境管理器</div>
-        </div>
+      <div className="border-b border-ink-700 px-4 py-4">
+        <div className="text-sm font-semibold tracking-wide text-slate-100">AgentHub</div>
+        <div className="mt-0.5 text-[11px] text-slate-500">统一 Agent 环境管理器</div>
       </div>
 
       {/* 导航 */}
@@ -96,37 +91,33 @@ export function Sidebar() {
             </div>
             <div className="space-y-0.5">
               {group.items.map((item) => {
-                const active = route === item.route;
-                return (
-                  <button
-                    key={item.route}
-                    type="button"
-                    onClick={() => navigate(item.route)}
-                    className={`nav-item ${
-                      active
-                        ? "border-brand-500 bg-brand-900 text-brand-400"
-                        : "text-slate-400 hover:bg-ink-800 hover:text-slate-200"
-                    }`}
-                  >
-                    <Icon name={item.icon} className="h-4 w-4 shrink-0" />
-                    <span className="flex-1 truncate">{item.label}</span>
-                    {item.tag && (
-                      <span className="rounded-sm border border-accent-800 bg-accent-900 px-1.5 py-0.5 font-mono text-[9px] text-accent-400">
-                        {item.tag}
-                      </span>
-                    )}
-                    {!item.tag && item.badge != null && item.badge > 0 && (
-                      <span
-                        className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] ${
-                          active ? "bg-brand-800 text-brand-400" : "bg-ink-800 text-slate-500"
-                        }`}
-                      >
-                        {item.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+                  const active = route === item.route;
+                  return (
+                    <button
+                      key={item.route}
+                      type="button"
+                      onClick={() => navigate(item.route)}
+                      className={`nav-item ${
+                        active
+                          ? "border-brand-500 bg-ink-800 text-brand-400"
+                          : "text-slate-400 hover:bg-ink-800 hover:text-slate-200"
+                      }`}
+                    >
+                      <Icon name={item.icon} className="h-4 w-4 shrink-0" />
+                      <span className="flex-1 truncate">{item.label}</span>
+                      {item.tag && (
+                        <span className="rounded-sm border border-accent-800 px-1.5 py-0.5 font-mono text-[9px] text-accent-400">
+                          {item.tag}
+                        </span>
+                      )}
+                      {!item.tag && item.badge != null && item.badge > 0 && (
+                        <span className="font-mono text-[10px] text-slate-600">
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
             </div>
           </div>
         ))}
@@ -134,17 +125,12 @@ export function Sidebar() {
 
       {/* 底部：本机 + 扫描 */}
       <div className="border-t border-ink-700 px-3 py-3">
-        <div className="mb-2.5 rounded-md border border-ink-700 bg-ink-850 px-3 py-2.5">
-          <div className="flex items-center gap-2 text-xs text-slate-300">
-            <Icon name="cpu" className="h-3.5 w-3.5 text-slate-500" />
-            <span className="truncate font-medium">{host?.hostname ?? "未连接"}</span>
+        <div className="mb-2.5 px-1">
+          <div className="truncate text-xs text-slate-400">{host?.hostname ?? "未连接"}</div>
+          <div className="mt-0.5 truncate text-[11px] text-slate-600">
+            {host ? `${host.os} · ${host.arch}` : "—"}
           </div>
-          <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
-            <span className="truncate">
-              {host ? `${host.os} · ${host.arch} · v${host.appVersion}` : "—"}
-            </span>
-          </div>
-          <div className="mt-1 text-[11px] text-slate-500">
+          <div className="mt-0.5 text-[11px] text-slate-600">
             上次扫描：{relativeTime(snapshot?.scannedAt)}
           </div>
         </div>

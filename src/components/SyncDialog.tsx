@@ -206,7 +206,7 @@ export function SyncDialog({
               {plan.warnings.map((w, i) => (
                 <div
                   key={i}
-                  className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-950 px-3 py-2 text-xs text-amber-200"
+                  className="flex items-start gap-2 rounded-lg border border-amber-500/25 px-3 py-2 text-xs text-amber-200"
                 >
                   <Icon name="alert" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   {w}
@@ -224,7 +224,7 @@ export function SyncDialog({
                 onClick={() => setActiveFile(index)}
                 className={`rounded-lg border px-2.5 py-1.5 text-left text-[11px] transition-colors ${
                   index === activeFile
-                    ? "border-brand-500/50 bg-brand-900 text-brand-300"
+                    ? "border-brand-500/50 text-brand-300"
                     : "border-ink-700 bg-ink-900 text-slate-400 hover:bg-ink-800"
                 }`}
               >
@@ -245,7 +245,7 @@ export function SyncDialog({
       ) : (
         /* ---------------------------------------------- 第一屏：选目标 */
         <div className="space-y-4">
-          <Card className="border-ink-700/60">
+          <Card className="border-ink-700">
             <div className="text-xs text-slate-400">将要写入的资源</div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {resourceItems.filter((r) => r.enabled).map((r) => (
@@ -262,7 +262,7 @@ export function SyncDialog({
             </div>
           </Card>
 
-          <Card className="border-ink-700/60">
+          <Card className="border-ink-700">
             <div className="text-xs text-slate-400">写入行为</div>
             <div className="mt-1">
               <Toggle
@@ -300,7 +300,7 @@ export function SyncDialog({
                   key={c.id}
                   className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 transition-colors ${
                     selected.includes(c.id)
-                      ? "border-brand-500/40 bg-brand-900"
+                      ? "border-brand-500/40"
                       : "border-ink-800 bg-ink-900 hover:bg-ink-800"
                   }`}
                 >
@@ -368,7 +368,7 @@ function TargetDetail({ target }: { target: SyncPlan["targets"][number] }) {
       </div>
 
       {!target.supported ? (
-        <div className="rounded-lg border border-rose-500/25 bg-rose-950 px-3 py-2.5 text-xs text-rose-200">
+        <div className="rounded-lg border border-rose-500/25 px-3 py-2.5 text-xs text-rose-200">
           {target.reason}
         </div>
       ) : target.kind === "skill" ? (

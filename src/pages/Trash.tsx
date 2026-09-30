@@ -353,7 +353,7 @@ export function TrashPage() {
               return (
                 <div
                   key={entry.name}
-                  className="rounded-lg border border-ink-800/70 bg-ink-900 px-3 py-2.5 transition-colors hover:bg-ink-800"
+                  className="rounded-lg border border-ink-800 bg-ink-900 px-3 py-2.5 transition-colors hover:bg-ink-800"
                 >
                   <div className="flex flex-wrap items-center gap-2.5">
                     <input
@@ -445,7 +445,7 @@ export function TrashPage() {
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-lg border border-ink-800/70">
+            <div className="overflow-hidden rounded-lg border border-ink-800">
               <table className="w-full border-collapse">
                 <thead>
                   <tr>
@@ -508,7 +508,7 @@ export function TrashPage() {
               </table>
             </div>
 
-            <Card className="border-ink-700/60">
+            <Card className="border-ink-700">
               <div className="flex items-start gap-2 text-[11px] leading-relaxed text-slate-500">
                 <Icon name="info" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
